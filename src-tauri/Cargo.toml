@@ -1,0 +1,33 @@
+[package]
+name = "adcleanse"
+version = "0.1.0"
+description = "AdCleanse: Desktop Privacy Audit & Ad-Profile Scrubbing Console"
+authors = ["Bored Polymath Studios"]
+edition = "2021"
+license = "MIT OR Apache-2.0"
+default-run = "adcleanse"
+
+[lib]
+name = "adcleanse_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon"] }
+tauri-plugin-shell = "2"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tokio = { version = "1", features = ["full"] }
+rusqlite = { version = "0.32", features = ["bundled", "backup"] }
+chrono = { version = "0.4", features = ["serde"] }
+thiserror = "2.0"
+log = "0.4"
+env_logger = "0.11"
+zeroize = { version = "1.8", features = ["zeroize_derive"] }
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
+rand = "0.8"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+core-foundation = "0.10"

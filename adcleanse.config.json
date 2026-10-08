@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "app": {
+    "name": "AdCleanse",
+    "version": "0.1.0",
+    "publisher": "Bored Polymath Studios",
+    "offline_first": true,
+    "zero_telemetry": true
+  },
+  "audit": {
+    "auto_polling_enabled": true,
+    "polling_interval_minutes": 60,
+    "randomized_jitter_seconds": 180,
+    "max_concurrent_requests": 2,
+    "request_delay_ms_min": 800,
+    "request_delay_ms_max": 2400
+  },
+  "scrubber": {
+    "auto_scrub_blacklisted_topics": true,
+    "notify_on_new_topics": true,
+    "notify_on_partner_upload": true,
+    "rate_limit_cooldown_seconds": 300
+  },
+  "storage": {
+    "encryption_algorithm": "AES-256-CBC",
+    "cipher_provider": "SQLCipher",
+    "wal_mode": true,
+    "auto_backup_before_migration": true,
+    "max_backup_rotations": 5
+  },
+  "ui": {
+    "theme": "dark",
+    "spotlight_hotkey": "CmdOrCtrl+Shift+P",
+    "minimize_to_tray_on_close": true,
+    "show_network_ledger": true
+  }
+}

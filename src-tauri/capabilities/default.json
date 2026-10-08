@@ -1,0 +1,10 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "identifier": "default",
+  "description": "Default permissions for AdCleanse desktop frontend",
+  "windows": ["main", "spotlight"],
+  "permissions": [
+    "core:default",
+    "shell:allow-open"
+  ]
+}
