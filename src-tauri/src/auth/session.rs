@@ -10,7 +10,7 @@ pub enum AuthState {
     Throttled,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Zeroize, ZeroizeOnDrop)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Zeroize, ZeroizeOnDrop)]
 pub struct SessionCredentials {
     pub user_id: String,
     pub session_cookie: String,

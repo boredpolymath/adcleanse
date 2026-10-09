@@ -35,8 +35,12 @@ impl AdaptiveRateLimiter {
         let jitter: i64 = rng.gen_range(5..30);
         let cooldown = backoff_base_seconds + jitter;
         let now = chrono::Utc::now().timestamp();
-        self.cooldown_until_epoch.store(now + cooldown, Ordering::SeqCst);
-        log::warn!("Throttling activated: backoff active for {} seconds", cooldown);
+        self.cooldown_until_epoch
+            .store(now + cooldown, Ordering::SeqCst);
+        log::warn!(
+            "Throttling activated: backoff active for {} seconds",
+            cooldown
+        );
     }
 
     /// Generates randomized human delay between mutations (800ms - 2400ms)

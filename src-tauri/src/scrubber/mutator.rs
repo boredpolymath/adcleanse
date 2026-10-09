@@ -19,10 +19,14 @@ impl PreferenceMutator {
 
     /// Dispatches authenticated preference removal to Meta mutator endpoints
     pub async fn remove_topic(&self, topic_id: &str, topic_name: &str) -> Result<ScrubResult> {
-        log::info!("Dispatching preference scrub request for topic: {} ({})", topic_name, topic_id);
-        
+        log::info!(
+            "Dispatching preference scrub request for topic: {} ({})",
+            topic_name,
+            topic_id
+        );
+
         let now = chrono::Utc::now().timestamp();
-        
+
         // Emulate successful mutation with randomized humanized delay in actual implementation
         Ok(ScrubResult {
             topic_id: topic_id.to_string(),
@@ -34,9 +38,17 @@ impl PreferenceMutator {
     }
 
     /// Revokes targeting authorization for third-party partner data upload
-    pub async fn opt_out_partner(&self, partner_id: &str, company_name: &str) -> Result<ScrubResult> {
-        log::info!("Dispatching partner audience revocation for: {} ({})", company_name, partner_id);
-        
+    pub async fn opt_out_partner(
+        &self,
+        partner_id: &str,
+        company_name: &str,
+    ) -> Result<ScrubResult> {
+        log::info!(
+            "Dispatching partner audience revocation for: {} ({})",
+            company_name,
+            partner_id
+        );
+
         let now = chrono::Utc::now().timestamp();
         Ok(ScrubResult {
             topic_id: partner_id.to_string(),

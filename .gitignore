@@ -1,7 +1,6 @@
 # Rust / Cargo
 /src-tauri/target/
 **/*.rs.bk
-Cargo.lock
 
 # Tauri build artifacts
 /src-tauri/gen/

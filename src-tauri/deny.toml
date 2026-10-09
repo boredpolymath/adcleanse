@@ -48,4 +48,6 @@ allow-registry = ["https://github.com/rust-lang/crates.io-index"]
 allow-git = []
 
 [advisories]
-ignore = []
+ignore = [
+    "RUSTSEC-2024-0370", # Transitive unmaintained proc-macro-error pulled by gtk3-macros/glib
+]

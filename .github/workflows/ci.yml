@@ -1,0 +1,133 @@
+name: AdCleanse CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  code-quality-and-security:
+    name: Code Quality & Supply Chain Security
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust Toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.75.0
+          components: rustfmt, clippy
+
+      - name: Install Linux Build Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            libsecret-1-dev \
+            patchelf
+
+      - name: Cache Cargo Dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            src-tauri/target
+          key: ${{ runner.os }}-cargo-quality-${{ hashFiles('src-tauri/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-quality-
+
+      - name: Code Formatting Check (cargo fmt)
+        working-directory: src-tauri
+        run: cargo fmt -- --check
+
+      - name: Strict Compiler Linting Gate (cargo clippy)
+        working-directory: src-tauri
+        run: cargo clippy --all-targets --all-features -- -D warnings
+
+      - name: Install cargo-deny & cargo-audit
+        run: |
+          cargo install --locked cargo-deny --version "^0.20" || true
+          cargo install --locked cargo-audit --version "^0.22" || true
+
+      - name: Supply Chain & License Audit (cargo deny)
+        working-directory: src-tauri
+        run: cargo deny check
+
+      - name: Vulnerability Audit (cargo audit)
+        working-directory: src-tauri
+        run: cargo audit
+
+      - name: Automated Unit & Integration Tests (cargo test)
+        working-directory: src-tauri
+        run: cargo test --all-targets
+
+  multiplatform-build:
+    name: Multi-Platform Build Matrix
+    needs: code-quality-and-security
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-14
+            target: aarch64-apple-darwin
+            name: macOS (Apple Silicon M1-M4)
+          - platform: macos-13
+            target: x86_64-apple-darwin
+            name: macOS (Intel x86_64)
+          - platform: windows-latest
+            target: x86_64-pc-windows-msvc
+            name: Windows 10/11 (x86_64)
+          - platform: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            name: Linux (x86_64)
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust Toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install Linux Build Dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            libsecret-1-dev \
+            patchelf
+
+      - name: Install Tauri CLI
+        run: cargo install tauri-cli --version "^2.0" --locked || true
+
+      - name: Cache Build Artifacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            src-tauri/target
+          key: ${{ runner.os }}-${{ matrix.target }}-build-${{ hashFiles('src-tauri/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ matrix.target }}-build-
+
+      - name: Compile and Verify Backend Crate
+        working-directory: src-tauri
+        run: cargo check --target ${{ matrix.target }}
+
+      - name: Run Target Tests
+        working-directory: src-tauri
+        run: cargo test --target ${{ matrix.target }}

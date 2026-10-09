@@ -14,7 +14,9 @@ pub struct StorageMetrics {
 #[tauri::command]
 pub async fn get_storage_metrics() -> Result<StorageMetrics> {
     Ok(StorageMetrics {
-        database_path: "~/Library/Application Support/com.boredpolymath.adcleanse/adcleanse.encrypted.db".to_string(),
+        database_path:
+            "~/Library/Application Support/com.boredpolymath.adcleanse/adcleanse.encrypted.db"
+                .to_string(),
         encryption_active: true,
         cipher_mode: "SQLCipher (AES-256-CBC)".to_string(),
         database_size_bytes: 428032,

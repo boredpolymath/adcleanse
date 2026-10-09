@@ -2,17 +2,24 @@ use crate::audit::models::AuditSnapshot;
 use crate::error::{AdCleanseError, Result};
 
 pub fn export_snapshots_to_json(snapshots: &[AuditSnapshot]) -> Result<String> {
-    serde_json::to_string_pretty(snapshots)
-        .map_err(|e| AdCleanseError::StorageError(e.to_string()))
+    serde_json::to_string_pretty(snapshots).map_err(|e| AdCleanseError::StorageError(e.to_string()))
 }
 
 pub fn export_topics_to_csv(snapshots: &[AuditSnapshot]) -> Result<String> {
-    let mut csv = String::from("SnapshotID,Timestamp,TopicID,TopicName,Category,Origin,RiskLevel,IsActive\n");
+    let mut csv =
+        String::from("SnapshotID,Timestamp,TopicID,TopicName,Category,Origin,RiskLevel,IsActive\n");
     for s in snapshots {
         for t in &s.topics {
             csv.push_str(&format!(
                 "\"{}\",{},\"{}\",\"{}\",\"{}\",\"{:?}\",\"{:?}\",{}\n",
-                s.id, s.timestamp_epoch, t.id, t.name, t.category, t.origin, t.risk_level, t.is_active
+                s.id,
+                s.timestamp_epoch,
+                t.id,
+                t.name,
+                t.category,
+                t.origin,
+                t.risk_level,
+                t.is_active
             ));
         }
     }
@@ -44,12 +51,12 @@ mod tests {
             partners: vec![],
         };
 
-        let json = export_snapshots_to_json(&[snapshot.clone()]).expect("JSON export failed");
+        let json =
+            export_snapshots_to_json(std::slice::from_ref(&snapshot)).expect("JSON export failed");
         assert!(json.contains("Real Estate"));
 
-        let csv = export_topics_to_csv(&[snapshot]).expect("CSV export failed");
+        let csv = export_topics_to_csv(std::slice::from_ref(&snapshot)).expect("CSV export failed");
         assert!(csv.contains("Real Estate"));
         assert!(csv.contains("Finance"));
     }
 }
-

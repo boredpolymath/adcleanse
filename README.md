@@ -99,3 +99,8 @@ Dual-licensed under either of:
 * MIT License ([LICENSE-MIT](LICENSE-MIT))
 
 at your option.
+
+---
+
+## Trademark & Legal Disclaimer
+**AdCleanse** is an independent, local open-source privacy audit utility authored by Bored Polymath Studios. AdCleanse is not affiliated with, sponsored by, authorized by, or endorsed by Meta Platforms, Inc., Facebook, Instagram, or any of their affiliates or subsidiaries. All product names, trademarks, and registered trademarks cited in documentation or UI are property of their respective holders and are used solely for identification and interoperability purposes.

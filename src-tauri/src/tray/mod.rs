@@ -22,7 +22,10 @@ impl TrayDaemonState {
     }
 
     pub fn update_tray_menu(&self) -> Result<()> {
-        log::info!("Updating system tray menu with active count: {}", self.get_topics_count());
+        log::info!(
+            "Updating system tray menu with active count: {}",
+            self.get_topics_count()
+        );
         Ok(())
     }
 }

@@ -66,20 +66,97 @@
 
   function mockHandler(cmd, args) {
     switch (cmd) {
+      case 'get_session_status':
+      case 'initiate_login':
+        return {
+          state: state.session.authenticated ? 'Authenticated' : 'Unauthenticated',
+          user_id: state.session.userId,
+          expires_at: Math.floor(Date.now() / 1000) + 86400 * 30,
+          last_verified_at: Math.floor(Date.now() / 1000),
+        };
+      case 'revoke_session':
+        state.session.authenticated = false;
+        return { status: 'ok' };
       case 'trigger_manual_audit':
+      case 'get_latest_snapshot':
         return {
           id: 'snap_' + Date.now(),
           timestamp_epoch: Math.floor(Date.now() / 1000),
           total_topics: state.topics.length,
           total_partners: state.partners.length,
-          drift_index: 34.5,
+          drift_index: state.metrics.driftIndex,
           topics: state.topics,
           partners: state.partners,
         };
+      case 'get_diff_history':
+        return [];
       case 'scrub_topic':
-        return { topic_id: args.topic_id, status: 'Successfully Purged', http_status: 200 };
+        return {
+          topic_id: args.topic_id,
+          topic_name: args.topic_name || 'Scrubbed Topic',
+          status: 'Successfully Purged',
+          http_status: 200,
+          timestamp_epoch: Math.floor(Date.now() / 1000),
+        };
+      case 'batch_scrub_topics':
+        return (args.topic_ids || []).map(id => ({
+          topic_id: id,
+          topic_name: 'Batch Topic',
+          status: 'Successfully Purged',
+          http_status: 200,
+          timestamp_epoch: Math.floor(Date.now() / 1000),
+        }));
+      case 'opt_out_partner':
+        return {
+          topic_id: args.partner_id,
+          topic_name: args.company_name || 'Partner Upload',
+          status: 'Opt-Out Revoked',
+          http_status: 200,
+          timestamp_epoch: Math.floor(Date.now() / 1000),
+        };
+      case 'get_topic_rules':
+        return state.rules;
+      case 'add_topic_rule': {
+        const newRule = {
+          id: 'rule_' + Date.now(),
+          pattern: args.pattern,
+          is_regex: args.is_regex || false,
+          auto_scrub_enabled: true,
+          created_at_epoch: Math.floor(Date.now() / 1000),
+        };
+        state.rules.push(newRule);
+        return newRule;
+      }
+      case 'get_storage_metrics':
+        return {
+          database_path: '~/Library/Application Support/com.boredpolymath.adcleanse/adcleanse.encrypted.db',
+          encryption_active: true,
+          cipher_mode: 'SQLCipher (AES-256-CBC)',
+          database_size_bytes: 428032,
+          snapshots_count: 14,
+          auto_backup_count: 3,
+        };
+      case 'export_audit_data':
+        return args.format === 'csv'
+          ? 'SnapshotID,Timestamp,TopicID,TopicName,Category,RiskLevel\n1,1760000000,t1,Finances,High'
+          : JSON.stringify({ export: 'complete', count: state.topics.length });
+      case 'wipe_local_database':
+        return true;
       case 'get_network_ledger':
         return state.ledger;
+      case 'clear_network_ledger':
+        state.ledger = [];
+        return { status: 'ok' };
+      case 'get_system_status':
+        return {
+          is_running: true,
+          background_polling_active: true,
+          tray_resident: true,
+          spotlight_visible: false,
+          cooldown_seconds_remaining: 0,
+        };
+      case 'toggle_spotlight_panel':
+        return true;
       default:
         return { status: 'ok' };
     }
@@ -130,17 +207,18 @@
       const tr = document.createElement('tr');
       const isChecked = state.selectedTopicIds.has(topic.id);
       
+      const riskVal = topic.risk || topic.risk_level || 'Moderate';
       let riskPill = 'pill-purple';
-      if (topic.risk === 'Critical') riskPill = 'pill-danger';
-      else if (topic.risk === 'High') riskPill = 'pill-amber';
-      else if (topic.risk === 'Low') riskPill = 'pill-emerald';
+      if (riskVal === 'Critical') riskPill = 'pill-danger';
+      else if (riskVal === 'High') riskPill = 'pill-amber';
+      else if (riskVal === 'Low') riskPill = 'pill-emerald';
 
       tr.innerHTML = `
         <td><input type="checkbox" class="topic-check" data-id="${topic.id}" ${isChecked ? 'checked' : ''}></td>
         <td><strong>${topic.category}</strong></td>
         <td>${topic.name}</td>
         <td><span class="pill pill-purple">${topic.origin}</span></td>
-        <td><span class="pill ${riskPill}">${topic.risk}</span></td>
+        <td><span class="pill ${riskPill}">${riskVal}</span></td>
         <td>
           <button class="btn btn-danger btn-sm btn-scrub-single" data-id="${topic.id}" data-name="${topic.name}">
             🧹 Scrub
@@ -218,14 +296,19 @@
     tbody.innerHTML = '';
 
     state.partners.forEach(partner => {
+      const companyName = partner.company_name || partner.name;
+      const windowStr = partner.upload_window_days ? `${partner.upload_window_days} Days` : (partner.window || '90 Days');
+      const isPixel = partner.pixel_tracking_detected !== undefined ? partner.pixel_tracking_detected : !!partner.pixel;
+      const rightsStr = partner.opt_out_status || partner.rights || 'Active Targeting';
+
       const tr = document.createElement('tr');
       tr.innerHTML = `
-        <td><strong>${partner.name}</strong></td>
-        <td>${partner.window}</td>
-        <td><span class="pill ${partner.pixel ? 'pill-danger' : 'pill-emerald'}">${partner.pixel ? 'Pixel Active' : 'Offline List'}</span></td>
-        <td><span class="pill pill-amber">${partner.rights}</span></td>
+        <td><strong>${companyName}</strong></td>
+        <td>${windowStr}</td>
+        <td><span class="pill ${isPixel ? 'pill-danger' : 'pill-emerald'}">${isPixel ? 'Pixel Active' : 'Offline List'}</span></td>
+        <td><span class="pill pill-amber">${rightsStr}</span></td>
         <td>
-          <button class="btn btn-secondary btn-revoke-partner" data-id="${partner.id}" data-name="${partner.name}">
+          <button class="btn btn-secondary btn-revoke-partner" data-id="${partner.id}" data-name="${companyName}">
             🚫 Revoke Targeting
           </button>
         </td>

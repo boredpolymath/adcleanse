@@ -64,4 +64,3 @@ mod tests {
         assert!(!enforcer.matches_blacklist("Mortgage Refinancing"));
     }
 }
-

@@ -1,7 +1,7 @@
 use crate::error::{AdCleanseError, Result};
 use rusqlite::Connection;
 
-pub const CURRENT_SCHEMA_VERSION: i32 = 1;
+pub const CURRENT_SCHEMA_VERSION: i32 = 2;
 
 pub fn run_migrations(conn: &Connection) -> Result<()> {
     let current_version: i32 = conn
@@ -71,6 +71,33 @@ pub fn run_migrations(conn: &Connection) -> Result<()> {
             CREATE INDEX IF NOT EXISTS idx_ledger_timestamp ON audit_ledger(timestamp_epoch);
 
             PRAGMA user_version = 1;
+            COMMIT;",
+        )
+        .map_err(|e| AdCleanseError::StorageError(e.to_string()))?;
+    }
+
+    if current_version < 2 {
+        log::info!("Applying schema migration v2: differential history tracking");
+        conn.execute_batch(
+            "BEGIN TRANSACTION;
+
+            CREATE TABLE IF NOT EXISTS differential_history (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                previous_snapshot_id TEXT,
+                current_snapshot_id TEXT NOT NULL,
+                newly_added_count INTEGER NOT NULL,
+                removed_count INTEGER NOT NULL,
+                re_enabled_count INTEGER NOT NULL,
+                newly_detected_partners_count INTEGER NOT NULL,
+                drift_delta REAL NOT NULL,
+                calculated_at_epoch INTEGER NOT NULL,
+                diff_payload_json TEXT NOT NULL
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_diff_current ON differential_history(current_snapshot_id);
+            CREATE INDEX IF NOT EXISTS idx_diff_calc_epoch ON differential_history(calculated_at_epoch);
+
+            PRAGMA user_version = 2;
             COMMIT;",
         )
         .map_err(|e| AdCleanseError::StorageError(e.to_string()))?;

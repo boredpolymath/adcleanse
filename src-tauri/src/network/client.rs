@@ -27,7 +27,10 @@ impl PrivacyHttpClient {
     /// Zero-telemetry enforced request dispatcher
     pub async fn dispatch_get(&self, url: &str) -> Result<String> {
         if !self.is_authorized_endpoint(url) {
-            log::error!("BLOCKED: Attempted outbound request to unauthorized endpoint: {}", url);
+            log::error!(
+                "BLOCKED: Attempted outbound request to unauthorized endpoint: {}",
+                url
+            );
             return Err(AdCleanseError::NetworkError(
                 "Violation of Zero-Telemetry Policy: Request rejected.".to_string(),
             ));
@@ -38,7 +41,8 @@ impl PrivacyHttpClient {
         }
 
         // Record into Network Ledger
-        self.ledger.record_request(url, "GET", 200, "Preference audit payload fetch");
+        self.ledger
+            .record_request(url, "GET", 200, "Preference audit payload fetch");
 
         Ok("{\"status\":\"ok\"}".to_string())
     }
