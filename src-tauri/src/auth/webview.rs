@@ -54,10 +54,7 @@ impl SandboxedWebviewController {
 
         match (user_id, session_cookie, datr_token) {
             (Some(uid), Some(xs), Some(datr)) => {
-                log::info!(
-                    "Successfully intercepted authentic Meta session cookies for user: {}",
-                    uid
-                );
+                log::info!("Successfully intercepted authentic Meta session cookies");
                 self.is_authenticating.store(false, Ordering::SeqCst);
                 Ok(SessionCredentials {
                     user_id: uid,
