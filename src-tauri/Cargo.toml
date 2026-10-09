@@ -16,11 +16,12 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 tauri = { version = "2", features = ["tray-icon"] }
-tauri-plugin-shell = "2"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 tokio = { version = "1", features = ["full"] }
-rusqlite = { version = "0.32", features = ["bundled", "backup"] }
+# SECURITY: `bundled-sqlcipher-vendored-openssl` links real SQLCipher. The previous
+# `bundled` feature linked plain SQLite, which silently ignores `PRAGMA key`.
+rusqlite = { version = "0.32", default-features = false, features = ["backup", "bundled-sqlcipher-vendored-openssl"] }
 chrono = { version = "0.4", features = ["serde"] }
 thiserror = "2.0"
 log = "0.4"
@@ -28,6 +29,9 @@ env_logger = "0.11"
 zeroize = { version = "1.8", features = ["zeroize_derive"] }
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
 rand = "0.8"
+# SECURITY: native OS credential stores (Keychain / Credential Manager / Secret Service).
+keyring = { version = "3", features = ["apple-native", "windows-native", "sync-secret-service", "crypto-rust", "vendored"] }
+regex = "1.13.1"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 core-foundation = "0.10"

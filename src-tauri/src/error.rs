@@ -26,6 +26,9 @@ pub enum AdCleanseError {
 
     #[error("Internal system error: {0}")]
     InternalError(String),
+
+    #[error("Invalid input: {0}")]
+    InvalidInput(String),
 }
 
 impl Serialize for AdCleanseError {

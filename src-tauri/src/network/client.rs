@@ -1,7 +1,34 @@
 use crate::error::{AdCleanseError, Result};
 use crate::network::ledger::NetworkLedger;
 use crate::network::limiter::AdaptiveRateLimiter;
+use crate::security::{is_allowed_https_url, AllowedEndpoint};
 use std::sync::Arc;
+
+/// The complete set of endpoints AdCleanse is ever permitted to contact.
+/// Enforced by parsed-URL host/path matching (see `security::is_allowed_https_url`).
+pub const AUTHORIZED_ENDPOINTS: &[AllowedEndpoint] = &[
+    AllowedEndpoint {
+        host: "www.facebook.com",
+        path_prefix: "/adpreferences",
+    },
+    AllowedEndpoint {
+        host: "accountscenter.facebook.com",
+        path_prefix: "/",
+    },
+    AllowedEndpoint {
+        host: "accountscenter.instagram.com",
+        path_prefix: "/",
+    },
+    AllowedEndpoint {
+        host: "graph.facebook.com",
+        path_prefix: "/",
+    },
+];
+
+/// Validates endpoint strictly against Meta verified preference endpoints.
+pub fn is_authorized_endpoint(url: &str) -> bool {
+    is_allowed_https_url(url, AUTHORIZED_ENDPOINTS)
+}
 
 pub struct PrivacyHttpClient {
     ledger: Arc<NetworkLedger>,
@@ -13,15 +40,8 @@ impl PrivacyHttpClient {
         Self { ledger, limiter }
     }
 
-    /// Validates endpoint domain strictly against Meta verified preference endpoints
     fn is_authorized_endpoint(&self, url: &str) -> bool {
-        let authorized = [
-            "https://www.facebook.com/adpreferences",
-            "https://accountscenter.facebook.com",
-            "https://accountscenter.instagram.com",
-            "https://graph.facebook.com",
-        ];
-        authorized.iter().any(|domain| url.starts_with(domain))
+        is_authorized_endpoint(url)
     }
 
     /// Zero-telemetry enforced request dispatcher

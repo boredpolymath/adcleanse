@@ -7,6 +7,7 @@ pub mod keyring;
 pub mod network;
 pub mod notifications;
 pub mod scrubber;
+pub mod security;
 pub mod storage;
 pub mod tray;
 
@@ -18,7 +19,6 @@ pub fn run() {
     log::info!("Initializing AdCleanse Core Engine (Zero-Telemetry Mode Active)");
 
     tauri::Builder::default()
-        .plugin(tauri_plugin_shell::init())
         .invoke_handler(tauri::generate_handler![
             initiate_login,
             get_session_status,

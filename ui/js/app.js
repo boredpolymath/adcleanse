@@ -162,6 +162,17 @@
     }
   }
 
+  // HTML Escape Utility
+  function escapeHTML(str) {
+    if (str == null) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
   // DOM Elements
   const tabs = document.querySelectorAll('.nav-tab-btn');
   const panes = document.querySelectorAll('.tab-pane');
@@ -214,13 +225,13 @@
       else if (riskVal === 'Low') riskPill = 'pill-emerald';
 
       tr.innerHTML = `
-        <td><input type="checkbox" class="topic-check" data-id="${topic.id}" ${isChecked ? 'checked' : ''}></td>
-        <td><strong>${topic.category}</strong></td>
-        <td>${topic.name}</td>
-        <td><span class="pill pill-purple">${topic.origin}</span></td>
-        <td><span class="pill ${riskPill}">${riskVal}</span></td>
+        <td><input type="checkbox" class="topic-check" data-id="${escapeHTML(topic.id)}" ${isChecked ? 'checked' : ''}></td>
+        <td><strong>${escapeHTML(topic.category)}</strong></td>
+        <td>${escapeHTML(topic.name)}</td>
+        <td><span class="pill pill-purple">${escapeHTML(topic.origin)}</span></td>
+        <td><span class="pill ${riskPill}">${escapeHTML(riskVal)}</span></td>
         <td>
-          <button class="btn btn-danger btn-sm btn-scrub-single" data-id="${topic.id}" data-name="${topic.name}">
+          <button class="btn btn-danger btn-sm btn-scrub-single" data-id="${escapeHTML(topic.id)}" data-name="${escapeHTML(topic.name)}">
             🧹 Scrub
           </button>
         </td>
@@ -303,12 +314,12 @@
 
       const tr = document.createElement('tr');
       tr.innerHTML = `
-        <td><strong>${companyName}</strong></td>
-        <td>${windowStr}</td>
+        <td><strong>${escapeHTML(companyName)}</strong></td>
+        <td>${escapeHTML(windowStr)}</td>
         <td><span class="pill ${isPixel ? 'pill-danger' : 'pill-emerald'}">${isPixel ? 'Pixel Active' : 'Offline List'}</span></td>
-        <td><span class="pill pill-amber">${rightsStr}</span></td>
+        <td><span class="pill pill-amber">${escapeHTML(rightsStr)}</span></td>
         <td>
-          <button class="btn btn-secondary btn-revoke-partner" data-id="${partner.id}" data-name="${companyName}">
+          <button class="btn btn-secondary btn-revoke-partner" data-id="${escapeHTML(partner.id)}" data-name="${escapeHTML(companyName)}">
             🚫 Revoke Targeting
           </button>
         </td>
@@ -336,11 +347,11 @@
     state.rules.forEach(rule => {
       const tr = document.createElement('tr');
       tr.innerHTML = `
-        <td><code>${rule.pattern}</code></td>
+        <td><code>${escapeHTML(rule.pattern)}</code></td>
         <td><span class="pill pill-purple">${rule.isRegex ? 'Regex' : 'Exact / Substring'}</span></td>
         <td><span class="pill pill-emerald">${rule.autoScrub ? 'Enabled' : 'Disabled'}</span></td>
         <td>
-          <button class="btn btn-outline btn-delete-rule" data-id="${rule.id}">Remove</button>
+          <button class="btn btn-outline btn-delete-rule" data-id="${escapeHTML(rule.id)}">Remove</button>
         </td>
       `;
       tbody.appendChild(tr);
@@ -363,12 +374,12 @@
     state.ledger.slice().reverse().forEach(entry => {
       const tr = document.createElement('tr');
       tr.innerHTML = `
-        <td>#${entry.id}</td>
-        <td>${entry.time}</td>
-        <td><span class="pill ${entry.method === 'GET' ? 'pill-purple' : 'pill-danger'}">${entry.method}</span></td>
-        <td><code>${entry.url}</code></td>
-        <td><span class="pill pill-emerald">${entry.status} OK</span></td>
-        <td>${entry.summary}</td>
+        <td>#${escapeHTML(entry.id)}</td>
+        <td>${escapeHTML(entry.time)}</td>
+        <td><span class="pill ${entry.method === 'GET' ? 'pill-purple' : 'pill-danger'}">${escapeHTML(entry.method)}</span></td>
+        <td><code>${escapeHTML(entry.url)}</code></td>
+        <td><span class="pill pill-emerald">${escapeHTML(entry.status)} OK</span></td>
+        <td>${escapeHTML(entry.summary)}</td>
         <td><span class="pill pill-emerald">Verified Zero-Telemetry</span></td>
       `;
       tbody.appendChild(tr);
