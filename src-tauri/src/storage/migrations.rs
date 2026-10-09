@@ -3,10 +3,21 @@ use rusqlite::Connection;
 
 pub const CURRENT_SCHEMA_VERSION: i32 = 2;
 
+/// Checks the current database schema version stored in PRAGMA user_version
+pub fn get_schema_version(conn: &Connection) -> Result<i32> {
+    conn.query_row("PRAGMA user_version;", [], |row| row.get(0))
+        .map_err(|e| AdCleanseError::StorageError(e.to_string()))
+}
+
+/// Checks whether pending migrations need to be applied
+pub fn needs_migration(conn: &Connection) -> Result<bool> {
+    let current_version = get_schema_version(conn)?;
+    Ok(current_version < CURRENT_SCHEMA_VERSION)
+}
+
+/// Runs atomic database migrations with schema version tracking
 pub fn run_migrations(conn: &Connection) -> Result<()> {
-    let current_version: i32 = conn
-        .query_row("PRAGMA user_version;", [], |row| row.get(0))
-        .unwrap_or(0);
+    let current_version = get_schema_version(conn)?;
 
     log::info!("Current database schema version: {}", current_version);
 
@@ -104,4 +115,24 @@ pub fn run_migrations(conn: &Connection) -> Result<()> {
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_atomic_migrations_lifecycle() {
+        let conn = Connection::open_in_memory().unwrap();
+        assert_eq!(get_schema_version(&conn).unwrap(), 0);
+        assert!(needs_migration(&conn).unwrap());
+
+        run_migrations(&conn).expect("Migrations should succeed");
+        assert_eq!(get_schema_version(&conn).unwrap(), CURRENT_SCHEMA_VERSION);
+        assert!(!needs_migration(&conn).unwrap());
+
+        // Re-running migrations is idempotent
+        run_migrations(&conn).expect("Re-running migrations should be idempotent");
+        assert_eq!(get_schema_version(&conn).unwrap(), CURRENT_SCHEMA_VERSION);
+    }
 }

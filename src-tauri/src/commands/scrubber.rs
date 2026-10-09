@@ -12,6 +12,10 @@ pub async fn scrub_topic(topic_id: String, topic_name: String) -> Result<ScrubRe
 #[tauri::command]
 pub async fn batch_scrub_topics(topic_ids: Vec<String>) -> Result<Vec<ScrubResult>> {
     log::info!("IPC: batch_scrub_topics count: {}", topic_ids.len());
+    let db = crate::storage::cipher::EncryptedDatabase::default_instance();
+    if db.is_ready() {
+        let _ = db.backup_before_mass_purge(topic_ids.len());
+    }
     let mutator = PreferenceMutator::new();
     let mut results = Vec::new();
     for id in topic_ids {

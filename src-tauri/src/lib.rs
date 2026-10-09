@@ -38,6 +38,8 @@ pub fn run() {
             clear_network_ledger,
             get_system_status,
             toggle_spotlight_panel,
+            get_spotlight_summary,
+            get_zero_telemetry_audit,
         ])
         .run(tauri::generate_context!())
         .expect("Failed to initialize AdCleanse desktop runtime");

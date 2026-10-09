@@ -45,6 +45,29 @@
       { id: 2, time: '09:15:04', method: 'GET', url: 'https://accountscenter.facebook.com/ad_preferences/advertisers', status: 200, summary: 'Query 90-day audience list uploads' },
       { id: 3, time: '09:16:11', method: 'POST', url: 'https://graph.facebook.com/v19.0/act_user/ad_topics/scrub', status: 200, summary: 'Mutate topic: Health Insurance & Supplements' },
     ],
+    diff: {
+      added: [
+        { name: 'Mortgage Refinancing', origin: 'Off-Platform Pixel Tracking', risk: 'High' },
+        { name: 'Clinical Depression Therapeutics', origin: 'Inferred Browsing Activity', risk: 'Critical' },
+        { name: 'Pre-Approved Credit Cards', origin: 'Lookalike Audience', risk: 'High' },
+      ],
+      removed: [
+        { name: 'Online Poker & Sports Betting', reason: 'Scrubbed by Rule #1', status: 'Purged' },
+        { name: 'Weight Loss Surgery', reason: 'Scrubbed by Manual Action', status: 'Purged' },
+      ],
+    },
+    settings: {
+      pollingInterval: 60,
+      jitterWindow: 180,
+      digestWindow: 5,
+      autoPolling: true,
+      trayResident: true,
+      notificationsEnabled: true,
+      notifyNewTopics: true,
+      notifyPartnerUploads: true,
+    },
+    walkthroughStep: 1,
+    lastAuditEpoch: Math.floor(Date.now() / 1000),
     selectedTopicIds: new Set(),
   };
 
@@ -280,18 +303,29 @@
       btn.addEventListener('click', async (e) => {
         const id = btn.dataset.id;
         const name = btn.dataset.name;
-        btn.textContent = 'Purging...';
+        btn.textContent = 'Removing...';
         btn.disabled = true;
 
         try {
           await invokeCommand('scrub_topic', { topic_id: id, topic_name: name });
+          const removedTopic = state.topics.find(t => t.id === id);
+          if (removedTopic && (removedTopic.risk === 'Critical' || removedTopic.risk === 'High')) {
+            state.metrics.highRiskCount = Math.max(0, state.metrics.highRiskCount - 1);
+          }
           state.topics = state.topics.filter(t => t.id !== id);
           state.metrics.totalTopics = state.topics.length;
           state.metrics.scrubbedCount += 1;
           
-          recordLedgerEntry('POST', 'https://graph.facebook.com/v19.0/act_user/ad_topics/scrub', 200, `Purged topic: ${name}`);
+          state.diff.removed.unshift({
+            name: name,
+            reason: 'Cleaned by You',
+            status: 'Removed',
+          });
+
+          recordLedgerEntry('POST', 'https://graph.facebook.com/v19.0/act_user/ad_topics/scrub', 200, `Removed topic: ${name}`);
           updateOverviewMetrics();
           renderTopics();
+          renderDiff();
           renderLedger();
         } catch (err) {
           btn.textContent = 'Failed';
@@ -304,23 +338,24 @@
   // Render Partner Ingestions Table
   function renderPartners() {
     const tbody = document.getElementById('tbody-partners');
+    if (!tbody) return;
     tbody.innerHTML = '';
 
     state.partners.forEach(partner => {
       const companyName = partner.company_name || partner.name;
       const windowStr = partner.upload_window_days ? `${partner.upload_window_days} Days` : (partner.window || '90 Days');
       const isPixel = partner.pixel_tracking_detected !== undefined ? partner.pixel_tracking_detected : !!partner.pixel;
-      const rightsStr = partner.opt_out_status || partner.rights || 'Active Targeting';
+      const rightsStr = partner.opt_out_status || partner.rights || 'Targeting Active';
 
       const tr = document.createElement('tr');
       tr.innerHTML = `
         <td><strong>${escapeHTML(companyName)}</strong></td>
         <td>${escapeHTML(windowStr)}</td>
-        <td><span class="pill ${isPixel ? 'pill-danger' : 'pill-emerald'}">${isPixel ? 'Pixel Active' : 'Offline List'}</span></td>
+        <td><span class="pill ${isPixel ? 'pill-danger' : 'pill-emerald'}">${isPixel ? 'Website Tracking' : 'Customer List'}</span></td>
         <td><span class="pill pill-amber">${escapeHTML(rightsStr)}</span></td>
         <td>
-          <button class="btn btn-secondary btn-revoke-partner" data-id="${escapeHTML(partner.id)}" data-name="${escapeHTML(companyName)}">
-            🚫 Revoke Targeting
+          <button class="btn btn-secondary btn-sm btn-revoke-partner" data-id="${escapeHTML(partner.id)}" data-name="${escapeHTML(companyName)}">
+            🚫 Stop Targeting
           </button>
         </td>
       `;
@@ -330,10 +365,10 @@
     document.querySelectorAll('.btn-revoke-partner').forEach(btn => {
       btn.addEventListener('click', () => {
         const name = btn.dataset.name;
-        btn.textContent = 'Revoked';
+        btn.textContent = 'Stopped';
         btn.disabled = true;
         btn.classList.add('btn-outline');
-        recordLedgerEntry('POST', 'https://graph.facebook.com/v19.0/act_user/advertisers/opt_out', 200, `Revoked partner upload: ${name}`);
+        recordLedgerEntry('POST', 'https://graph.facebook.com/v19.0/act_user/advertisers/opt_out', 200, `Stopped partner targeting: ${name}`);
         renderLedger();
       });
     });
@@ -342,16 +377,20 @@
   // Render Rules Table
   function renderRules() {
     const tbody = document.getElementById('tbody-rules');
+    if (!tbody) return;
     tbody.innerHTML = '';
+
+    if (state.rules.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="2" style="text-align: center; color: var(--text-dim); padding: 14px;">No blocked keywords yet. Enter a keyword above to always block it.</td></tr>`;
+      return;
+    }
 
     state.rules.forEach(rule => {
       const tr = document.createElement('tr');
       tr.innerHTML = `
-        <td><code>${escapeHTML(rule.pattern)}</code></td>
-        <td><span class="pill pill-purple">${rule.isRegex ? 'Regex' : 'Exact / Substring'}</span></td>
-        <td><span class="pill pill-emerald">${rule.autoScrub ? 'Enabled' : 'Disabled'}</span></td>
-        <td>
-          <button class="btn btn-outline btn-delete-rule" data-id="${escapeHTML(rule.id)}">Remove</button>
+        <td><strong>${escapeHTML(rule.pattern)}</strong></td>
+        <td style="text-align: right;">
+          <button class="btn btn-outline btn-sm btn-delete-rule" data-id="${escapeHTML(rule.id)}">Unblock</button>
         </td>
       `;
       tbody.appendChild(tr);
@@ -369,6 +408,7 @@
   // Render Network Ledger
   function renderLedger() {
     const tbody = document.getElementById('tbody-ledger');
+    if (!tbody) return;
     tbody.innerHTML = '';
 
     state.ledger.slice().reverse().forEach(entry => {
@@ -380,7 +420,7 @@
         <td><code>${escapeHTML(entry.url)}</code></td>
         <td><span class="pill pill-emerald">${escapeHTML(entry.status)} OK</span></td>
         <td>${escapeHTML(entry.summary)}</td>
-        <td><span class="pill pill-emerald">Verified Zero-Telemetry</span></td>
+        <td><span class="pill pill-emerald">Private</span></td>
       `;
       tbody.appendChild(tr);
     });
@@ -402,95 +442,159 @@
 
   // Overview Metrics Updater
   function updateOverviewMetrics() {
-    document.getElementById('overview-total-topics').textContent = state.metrics.totalTopics;
-    document.getElementById('overview-high-risk').textContent = state.metrics.highRiskCount;
-    document.getElementById('overview-partner-count').textContent = state.metrics.partnerCount;
-    document.getElementById('overview-scrubbed-count').textContent = state.metrics.scrubbedCount;
-    document.getElementById('badge-topics-count').textContent = state.metrics.totalTopics;
-    document.getElementById('badge-partners-count').textContent = state.metrics.partnerCount;
+    const elTopics = document.getElementById('overview-total-topics');
+    if (elTopics) elTopics.textContent = state.metrics.totalTopics;
+    const elHigh = document.getElementById('overview-high-risk');
+    if (elHigh) elHigh.textContent = state.metrics.highRiskCount;
+    const elPartner = document.getElementById('overview-partner-count');
+    if (elPartner) elPartner.textContent = state.metrics.partnerCount;
+    const elScrubbed = document.getElementById('overview-scrubbed-count');
+    if (elScrubbed) elScrubbed.textContent = state.metrics.scrubbedCount;
+    const badgeTopics = document.getElementById('badge-topics-count');
+    if (badgeTopics) badgeTopics.textContent = state.metrics.totalTopics;
+    const badgePartners = document.getElementById('badge-partners-count');
+    if (badgePartners) badgePartners.textContent = state.metrics.partnerCount;
 
-    document.getElementById('spotlight-topics').textContent = `${state.metrics.totalTopics} Topics`;
-    document.getElementById('spotlight-drift').textContent = `${state.metrics.driftIndex}%`;
+    const spotTopics = document.getElementById('spotlight-topics');
+    if (spotTopics) spotTopics.textContent = `${state.metrics.totalTopics} Topics`;
+    const spotDrift = document.getElementById('spotlight-drift');
+    if (spotDrift) spotDrift.textContent = `${state.metrics.highRiskCount}`;
+
+    const quickBtn = document.getElementById('btn-quick-scrub-all-high');
+    if (quickBtn) {
+      if (state.metrics.highRiskCount === 0) {
+        quickBtn.textContent = '✅ All Sensitive Topics Cleaned';
+        quickBtn.disabled = true;
+      } else {
+        quickBtn.textContent = `🧹 Clean All ${state.metrics.highRiskCount} Sensitive Topics`;
+        quickBtn.disabled = false;
+      }
+    }
   }
 
   // Setup Event Handlers
   function initEventHandlers() {
     // Search & Filter Listeners
-    document.getElementById('input-topics-search').addEventListener('input', renderTopics);
-    document.getElementById('select-category-filter').addEventListener('change', renderTopics);
-    document.getElementById('select-risk-filter').addEventListener('change', renderTopics);
+    const inputSearch = document.getElementById('input-topics-search');
+    if (inputSearch) inputSearch.addEventListener('input', renderTopics);
+
+    const selectCategory = document.getElementById('select-category-filter');
+    if (selectCategory) selectCategory.addEventListener('change', renderTopics);
+
+    const selectRisk = document.getElementById('select-risk-filter');
+    if (selectRisk) selectRisk.addEventListener('change', renderTopics);
 
     // Batch Scrub Button
-    document.getElementById('btn-batch-scrub').addEventListener('click', async () => {
-      const selected = Array.from(state.selectedTopicIds);
-      if (selected.length === 0) return;
+    const btnBatch = document.getElementById('btn-batch-scrub');
+    if (btnBatch) {
+      btnBatch.addEventListener('click', async () => {
+        const selected = Array.from(state.selectedTopicIds);
+        if (selected.length === 0) return;
 
-      const btn = document.getElementById('btn-batch-scrub');
-      btn.textContent = 'Purging Batch...';
-      btn.disabled = true;
+        btnBatch.textContent = 'Removing...';
+        btnBatch.disabled = true;
 
-      try {
-        await invokeCommand('batch_scrub_topics', { topic_ids: selected });
-        state.topics = state.topics.filter(t => !state.selectedTopicIds.has(t.id));
-        state.metrics.scrubbedCount += selected.length;
+        try {
+          await invokeCommand('batch_scrub_topics', { topic_ids: selected });
+          selected.forEach(id => {
+            const t = state.topics.find(top => top.id === id);
+            if (t) {
+              if (t.risk === 'Critical' || t.risk === 'High') {
+                state.metrics.highRiskCount = Math.max(0, state.metrics.highRiskCount - 1);
+              }
+              state.diff.removed.unshift({
+                name: t.name,
+                reason: 'Removed in Batch',
+                status: 'Removed',
+              });
+            }
+          });
+          state.topics = state.topics.filter(t => !state.selectedTopicIds.has(t.id));
+          state.metrics.scrubbedCount += selected.length;
+          state.metrics.totalTopics = state.topics.length;
+          state.selectedTopicIds.clear();
+          
+          recordLedgerEntry('POST', 'https://graph.facebook.com/v19.0/act_user/ad_topics/batch_scrub', 200, `Batch removed ${selected.length} topics`);
+          updateOverviewMetrics();
+          updateBatchButton();
+          renderTopics();
+          renderDiff();
+          renderLedger();
+        } catch (err) {
+          console.error(err);
+        }
+      });
+    }
+
+    // Mass-Purge All High-Risk Button
+    const btnQuickScrub = document.getElementById('btn-quick-scrub-all-high');
+    if (btnQuickScrub) {
+      btnQuickScrub.addEventListener('click', async () => {
+        const highRisk = state.topics.filter(t => t.risk === 'Critical' || t.risk === 'High');
+        const ids = highRisk.map(t => t.id);
+
+        btnQuickScrub.textContent = 'Cleaning...';
+        btnQuickScrub.disabled = true;
+
+        await invokeCommand('batch_scrub_topics', { topic_ids: ids });
+        highRisk.forEach(t => {
+          state.diff.removed.unshift({
+            name: t.name,
+            reason: 'Cleaned Sensitive Category',
+            status: 'Removed',
+          });
+        });
+        state.topics = state.topics.filter(t => t.risk !== 'Critical' && t.risk !== 'High');
+        state.metrics.scrubbedCount += ids.length;
         state.metrics.totalTopics = state.topics.length;
-        state.selectedTopicIds.clear();
-        
-        recordLedgerEntry('POST', 'https://graph.facebook.com/v19.0/act_user/ad_topics/batch_scrub', 200, `Batch purged ${selected.length} topics`);
+        state.metrics.highRiskCount = 0;
+
+        recordLedgerEntry('POST', 'https://graph.facebook.com/v19.0/act_user/ad_topics/batch_scrub', 200, `Cleaned ${ids.length} sensitive topics`);
         updateOverviewMetrics();
         updateBatchButton();
         renderTopics();
+        renderDiff();
         renderLedger();
-      } catch (err) {
-        console.error(err);
-      }
-    });
-
-    // Mass-Purge All High-Risk Button
-    document.getElementById('btn-quick-scrub-all-high').addEventListener('click', async () => {
-      const highRisk = state.topics.filter(t => t.risk === 'Critical' || t.risk === 'High');
-      const ids = highRisk.map(t => t.id);
-
-      await invokeCommand('batch_scrub_topics', { topic_ids: ids });
-      state.topics = state.topics.filter(t => t.risk !== 'Critical' && t.risk !== 'High');
-      state.metrics.scrubbedCount += ids.length;
-      state.metrics.totalTopics = state.topics.length;
-      state.metrics.highRiskCount = 0;
-
-      recordLedgerEntry('POST', 'https://graph.facebook.com/v19.0/act_user/ad_topics/batch_scrub', 200, `Mass-purged ${ids.length} high-risk topics`);
-      updateOverviewMetrics();
-      renderTopics();
-      renderLedger();
-    });
+      });
+    }
 
     // Rule Creator Form
-    document.getElementById('form-create-rule').addEventListener('submit', (e) => {
-      e.preventDefault();
-      const pattern = document.getElementById('rule-pattern').value.trim();
-      const isRegex = document.getElementById('rule-is-regex').checked;
-      const autoScrub = document.getElementById('rule-auto-scrub').checked;
+    const formRule = document.getElementById('form-create-rule');
+    if (formRule) {
+      formRule.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const inputPattern = document.getElementById('rule-pattern');
+        const pattern = inputPattern ? inputPattern.value.trim() : '';
+        const checkRegex = document.getElementById('rule-is-regex');
+        const isRegex = checkRegex ? checkRegex.checked : false;
+        const checkAuto = document.getElementById('rule-auto-scrub');
+        const autoScrub = checkAuto ? checkAuto.checked : true;
 
-      if (!pattern) return;
+        if (!pattern) return;
 
-      const newRule = {
-        id: 'rule_' + Date.now(),
-        pattern,
-        isRegex,
-        autoScrub,
-      };
+        const newRule = {
+          id: 'rule_' + Date.now(),
+          pattern,
+          isRegex,
+          autoScrub,
+        };
 
-      state.rules.push(newRule);
-      document.getElementById('rule-pattern').value = '';
-      renderRules();
-    });
+        state.rules.push(newRule);
+        if (inputPattern) inputPattern.value = '';
+        renderRules();
+      });
+    }
 
     // Spotlight Overlay Controls
     const toggleSpotlight = () => {
-      spotlightOverlay.classList.toggle('hidden');
+      if (spotlightOverlay) spotlightOverlay.classList.toggle('hidden');
     };
 
-    document.getElementById('btn-toggle-spotlight').addEventListener('click', toggleSpotlight);
-    document.getElementById('btn-close-spotlight').addEventListener('click', toggleSpotlight);
+    const btnSpotlightToggle = document.getElementById('btn-toggle-spotlight');
+    if (btnSpotlightToggle) btnSpotlightToggle.addEventListener('click', toggleSpotlight);
+
+    const btnSpotlightClose = document.getElementById('btn-close-spotlight');
+    if (btnSpotlightClose) btnSpotlightClose.addEventListener('click', toggleSpotlight);
 
     // Global Shortcut Handler: Cmd/Ctrl + Shift + P
     window.addEventListener('keydown', (e) => {
@@ -498,98 +602,328 @@
         e.preventDefault();
         toggleSpotlight();
       }
-      if (e.key === 'Escape' && !spotlightOverlay.classList.contains('hidden')) {
+      if (e.key === 'Escape' && spotlightOverlay && !spotlightOverlay.classList.contains('hidden')) {
         toggleSpotlight();
       }
     });
 
     // Spotlight Quick Scrub
-    document.getElementById('btn-spotlight-quick-scrub').addEventListener('click', () => {
-      document.getElementById('btn-quick-scrub-all-high').click();
-      toggleSpotlight();
+    const btnSpotlightQuick = document.getElementById('btn-spotlight-quick-scrub');
+    if (btnSpotlightQuick) {
+      btnSpotlightQuick.addEventListener('click', () => {
+        const mainQuickBtn = document.getElementById('btn-quick-scrub-all-high');
+        if (mainQuickBtn) mainQuickBtn.click();
+        toggleSpotlight();
+      });
+    }
+
+    // Walkthrough Modal & Wizard Navigation
+    const openTrustBtn = document.getElementById('btn-open-trust');
+    if (openTrustBtn) {
+      openTrustBtn.addEventListener('click', () => {
+        setWalkthroughStep(1);
+        if (onboardingModal) onboardingModal.showModal();
+      });
+    }
+
+    const closeOnboardingBtn = document.getElementById('btn-close-onboarding');
+    if (closeOnboardingBtn) {
+      closeOnboardingBtn.addEventListener('click', () => {
+        if (onboardingModal) onboardingModal.close();
+      });
+    }
+
+    const nextStepBtn = document.getElementById('btn-walkthrough-next');
+    if (nextStepBtn) {
+      nextStepBtn.addEventListener('click', () => {
+        setWalkthroughStep(state.walkthroughStep + 1);
+      });
+    }
+
+    const prevStepBtn = document.getElementById('btn-walkthrough-prev');
+    if (prevStepBtn) {
+      prevStepBtn.addEventListener('click', () => {
+        setWalkthroughStep(state.walkthroughStep - 1);
+      });
+    }
+
+    const finishStepBtn = document.getElementById('btn-walkthrough-finish');
+    if (finishStepBtn) {
+      finishStepBtn.addEventListener('click', () => {
+        if (onboardingModal) onboardingModal.close();
+      });
+    }
+
+    // Step Indicator Clicks
+    for (let i = 1; i <= 3; i++) {
+      const pill = document.getElementById(`indicator-step-${i}`);
+      if (pill) {
+        pill.addEventListener('click', () => setWalkthroughStep(i));
+      }
+    }
+
+    // Settings Panel Sliders
+    const sliderPoll = document.getElementById('slider-polling-interval');
+    const valPoll = document.getElementById('val-polling-interval');
+    if (sliderPoll && valPoll) {
+      sliderPoll.addEventListener('input', (e) => {
+        valPoll.textContent = `${e.target.value} min`;
+        state.settings.pollingInterval = parseInt(e.target.value, 10);
+      });
+    }
+
+    const sliderJitter = document.getElementById('slider-jitter-window');
+    const valJitter = document.getElementById('val-jitter-window');
+    if (sliderJitter && valJitter) {
+      sliderJitter.addEventListener('input', (e) => {
+        valJitter.textContent = `${e.target.value} sec`;
+        state.settings.jitterWindow = parseInt(e.target.value, 10);
+      });
+    }
+
+    const sliderDigest = document.getElementById('slider-digest-window');
+    const valDigest = document.getElementById('val-digest-window');
+    if (sliderDigest && valDigest) {
+      sliderDigest.addEventListener('input', (e) => {
+        valDigest.textContent = `${e.target.value} min`;
+        state.settings.digestWindow = parseInt(e.target.value, 10);
+      });
+    }
+
+    // Settings Panel Toggles
+    [
+      'toggle-auto-polling',
+      'toggle-tray-resident',
+      'toggle-notifications-enabled',
+      'toggle-notify-new-topics',
+      'toggle-notify-partner-uploads',
+    ].forEach(id => {
+      const toggle = document.getElementById(id);
+      if (toggle) {
+        toggle.addEventListener('change', (e) => {
+          state.settings[id] = e.target.checked;
+        });
+      }
     });
 
-    // Onboarding Modal
-    document.getElementById('btn-open-trust').addEventListener('click', () => {
-      onboardingModal.showModal();
-    });
-    document.getElementById('btn-close-onboarding').addEventListener('click', () => {
-      onboardingModal.close();
-    });
-    document.getElementById('btn-ack-onboarding').addEventListener('click', () => {
-      onboardingModal.close();
-    });
+    // Recompute Diff Button
+    const btnRecompute = document.getElementById('btn-recompute-diff');
+    if (btnRecompute) {
+      btnRecompute.addEventListener('click', async () => {
+        btnRecompute.textContent = 'Checking...';
+        btnRecompute.disabled = true;
+        try {
+          await invokeCommand('get_diff_history');
+          recordLedgerEntry('GET', 'https://accountscenter.facebook.com/ad_preferences/topics', 200, 'Checked for profile changes');
+          renderLedger();
+          renderDiff();
+        } finally {
+          setTimeout(() => {
+            btnRecompute.textContent = 'Check for Changes Now';
+            btnRecompute.disabled = false;
+          }, 500);
+        }
+      });
+    }
 
     // Run Immediate Audit Button
-    document.getElementById('btn-run-audit').addEventListener('click', async () => {
-      const btn = document.getElementById('btn-run-audit');
-      btn.innerHTML = '⚡ Scanning...';
-      btn.disabled = true;
+    const btnRunAudit = document.getElementById('btn-run-audit');
+    if (btnRunAudit) {
+      btnRunAudit.addEventListener('click', async () => {
+        btnRunAudit.innerHTML = '⚡ Checking...';
+        btnRunAudit.disabled = true;
 
-      try {
-        await invokeCommand('trigger_manual_audit');
-        recordLedgerEntry('GET', 'https://accountscenter.facebook.com/ad_preferences/topics', 200, 'Executed differential snapshot audit');
-        renderLedger();
-      } finally {
-        setTimeout(() => {
-          btn.innerHTML = '<span class="btn-icon">⚡</span> Run Audit';
-          btn.disabled = false;
-        }, 600);
-      }
-    });
+        try {
+          await invokeCommand('trigger_manual_audit');
+          state.lastAuditEpoch = Math.floor(Date.now() / 1000);
+          updateHeaderLastAudit();
+          recordLedgerEntry('GET', 'https://accountscenter.facebook.com/ad_preferences/topics', 200, 'Checked ad preferences');
+          renderLedger();
+        } finally {
+          setTimeout(() => {
+            btnRunAudit.innerHTML = '⚡ Check Now';
+            btnRunAudit.disabled = false;
+          }, 600);
+        }
+      });
+    }
 
     // Clear Ledger Button
-    document.getElementById('btn-clear-ledger').addEventListener('click', () => {
-      state.ledger = [];
-      renderLedger();
-    });
+    const btnClearLedger = document.getElementById('btn-clear-ledger');
+    if (btnClearLedger) {
+      btnClearLedger.addEventListener('click', () => {
+        state.ledger = [];
+        renderLedger();
+      });
+    }
 
     // Storage Actions: Exports & Nuclear Wipe
-    document.getElementById('btn-export-json').addEventListener('click', () => {
-      const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(state, null, 2));
-      const dlAnchor = document.createElement('a');
-      dlAnchor.setAttribute('href', dataStr);
-      dlAnchor.setAttribute('download', 'adcleanse_snapshot_history.json');
-      dlAnchor.click();
-    });
-
-    document.getElementById('btn-export-csv').addEventListener('click', () => {
-      let csvContent = 'data:text/csv;charset=utf-8,ID,Category,Name,Origin,Risk\n';
-      state.topics.forEach(t => {
-        csvContent += `"${t.id}","${t.category}","${t.name}","${t.origin}","${t.risk}"\n`;
+    const btnExportJson = document.getElementById('btn-export-json');
+    if (btnExportJson) {
+      btnExportJson.addEventListener('click', () => {
+        const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(state, null, 2));
+        const dlAnchor = document.createElement('a');
+        dlAnchor.setAttribute('href', dataStr);
+        dlAnchor.setAttribute('download', 'adcleanse_history.json');
+        dlAnchor.click();
       });
-      const dlAnchor = document.createElement('a');
-      dlAnchor.setAttribute('href', encodeURI(csvContent));
-      dlAnchor.setAttribute('download', 'adcleanse_topics.csv');
-      dlAnchor.click();
-    });
+    }
 
-    document.getElementById('btn-nuclear-wipe').addEventListener('click', () => {
-      if (confirm('CRITICAL ACTION: Are you sure you want to permanently erase the local encrypted database and remove all stored OS Keyring tokens?')) {
-        state.topics = [];
-        state.partners = [];
-        state.rules = [];
-        state.metrics.totalTopics = 0;
-        state.metrics.highRiskCount = 0;
-        state.metrics.partnerCount = 0;
-        updateOverviewMetrics();
-        renderTopics();
-        renderPartners();
-        renderRules();
-        alert('Local encrypted database erased and OS Keyring credentials purged.');
+    const btnExportCsv = document.getElementById('btn-export-csv');
+    if (btnExportCsv) {
+      btnExportCsv.addEventListener('click', () => {
+        let csvContent = 'data:text/csv;charset=utf-8,ID,Category,Name,Source,Sensitivity\n';
+        state.topics.forEach(t => {
+          csvContent += `"${t.id}","${t.category}","${t.name}","${t.origin}","${t.risk}"\n`;
+        });
+        const dlAnchor = document.createElement('a');
+        dlAnchor.setAttribute('href', encodeURI(csvContent));
+        dlAnchor.setAttribute('download', 'adcleanse_topics.csv');
+        dlAnchor.click();
+      });
+    }
+
+    const btnNuclearWipe = document.getElementById('btn-nuclear-wipe');
+    if (btnNuclearWipe) {
+      btnNuclearWipe.addEventListener('click', async () => {
+        if (confirm('Are you sure you want to erase all saved local data? This will reset AdCleanse.')) {
+          await invokeCommand('wipe_local_database');
+          state.topics = [];
+          state.partners = [];
+          state.rules = [];
+          state.diff.added = [];
+          state.diff.removed = [];
+          state.metrics.totalTopics = 0;
+          state.metrics.highRiskCount = 0;
+          state.metrics.partnerCount = 0;
+          state.metrics.scrubbedCount = 0;
+          state.metrics.driftIndex = 0.0;
+          updateOverviewMetrics();
+          renderTopics();
+          renderPartners();
+          renderRules();
+          renderDiff();
+          alert('All local data has been erased.');
+        }
+      });
+    }
+  }
+
+  // Walkthrough Wizard Controller
+  function setWalkthroughStep(step) {
+    state.walkthroughStep = Math.max(1, Math.min(3, step));
+    for (let i = 1; i <= 3; i++) {
+      const stepEl = document.getElementById(`walkthrough-step-${i}`);
+      const pillEl = document.getElementById(`indicator-step-${i}`);
+      if (stepEl) {
+        if (i === state.walkthroughStep) stepEl.classList.remove('hidden');
+        else stepEl.classList.add('hidden');
       }
-    });
+      if (pillEl) {
+        pillEl.classList.remove('active', 'completed');
+        if (i === state.walkthroughStep) pillEl.classList.add('active');
+        else if (i < state.walkthroughStep) pillEl.classList.add('completed');
+      }
+    }
+
+    const prevBtn = document.getElementById('btn-walkthrough-prev');
+    const nextBtn = document.getElementById('btn-walkthrough-next');
+    const finishBtn = document.getElementById('btn-walkthrough-finish');
+
+    if (prevBtn) prevBtn.style.visibility = state.walkthroughStep === 1 ? 'hidden' : 'visible';
+    if (nextBtn) {
+      if (state.walkthroughStep === 3) nextBtn.classList.add('hidden');
+      else nextBtn.classList.remove('hidden');
+    }
+    if (finishBtn) {
+      if (state.walkthroughStep === 3) finishBtn.classList.remove('hidden');
+      else finishBtn.classList.add('hidden');
+    }
+  }
+
+  // Differential Timeline Renderer
+  function renderDiff() {
+    const addedList = document.getElementById('diff-added-list');
+    const removedList = document.getElementById('diff-removed-list');
+    const addedCount = document.getElementById('diff-added-count');
+    const removedCount = document.getElementById('diff-removed-count');
+
+    if (addedCount) addedCount.textContent = `${state.diff.added.length} Topics`;
+    if (removedCount) removedCount.textContent = `${state.diff.removed.length} Topics`;
+
+    if (addedList) {
+      if (state.diff.added.length === 0) {
+        addedList.innerHTML = '<li style="color: var(--text-dim); padding: 12px;">No new topics detected since baseline snapshot.</li>';
+      } else {
+        addedList.innerHTML = state.diff.added.map(item => `
+          <li>
+            <strong>${escapeHTML(item.name)}</strong>
+            <small>Origin: ${escapeHTML(item.origin)} &bull; Risk: ${escapeHTML(item.risk)}</small>
+          </li>
+        `).join('');
+      }
+    }
+
+    if (removedList) {
+      if (state.diff.removed.length === 0) {
+        removedList.innerHTML = '<li style="color: var(--text-dim); padding: 12px;">No topics removed in current session.</li>';
+      } else {
+        removedList.innerHTML = state.diff.removed.map(item => `
+          <li>
+            <strong>${escapeHTML(item.name)}</strong>
+            <small>${escapeHTML(item.reason)} &bull; Status: ${escapeHTML(item.status)}</small>
+          </li>
+        `).join('');
+      }
+    }
+  }
+
+  // Live Header Last Scan Updater
+  function updateHeaderLastAudit() {
+    const el = document.getElementById('header-last-scan');
+    if (!el) return;
+    const now = Math.floor(Date.now() / 1000);
+    const diffSec = Math.max(0, now - state.lastAuditEpoch);
+    if (diffSec < 60) {
+      el.textContent = 'Last Audit: Just now';
+    } else {
+      const mins = Math.floor(diffSec / 60);
+      el.textContent = `Last Audit: ${mins}m ago`;
+    }
+  }
+
+  // Storage Metrics Loader
+  async function loadStorageMetadata() {
+    try {
+      const meta = await invokeCommand('get_storage_metrics');
+      if (meta) {
+        const pathEl = document.getElementById('meta-db-path');
+        const backupEl = document.getElementById('meta-backup-count');
+        if (pathEl && meta.database_path) pathEl.textContent = meta.database_path;
+        if (backupEl && meta.auto_backup_count !== undefined) backupEl.textContent = `${meta.auto_backup_count} Rotations`;
+      }
+    } catch (err) {
+      console.warn('Storage metrics load warning:', err);
+    }
   }
 
   // Initialization
   function init() {
-    initTabs();
-    initEventHandlers();
-    updateOverviewMetrics();
-    renderTopics();
-    renderPartners();
-    renderRules();
-    renderLedger();
+    try { initTabs(); } catch (e) { console.warn('initTabs:', e); }
+    try { initEventHandlers(); } catch (e) { console.warn('initEventHandlers:', e); }
+    try { updateOverviewMetrics(); } catch (e) { console.warn('updateOverviewMetrics:', e); }
+    try { renderTopics(); } catch (e) { console.warn('renderTopics:', e); }
+    try { renderPartners(); } catch (e) { console.warn('renderPartners:', e); }
+    try { renderRules(); } catch (e) { console.warn('renderRules:', e); }
+    try { renderDiff(); } catch (e) { console.warn('renderDiff:', e); }
+    try { renderLedger(); } catch (e) { console.warn('renderLedger:', e); }
+    try { setWalkthroughStep(1); } catch (e) { console.warn('setWalkthroughStep:', e); }
+    try { updateHeaderLastAudit(); } catch (e) { console.warn('updateHeaderLastAudit:', e); }
+    try { loadStorageMetadata(); } catch (e) { console.warn('loadStorageMetadata:', e); }
+
+    // Periodic header time updater
+    setInterval(updateHeaderLastAudit, 30000);
+
     console.info('AdCleanse presentation layer initialized in zero-telemetry mode.');
   }
 

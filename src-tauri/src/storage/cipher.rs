@@ -2,39 +2,86 @@ use crate::audit::models::{
     AdTopic, AuditSnapshot, DifferentialResult, PartnerUpload, RiskLevel, TopicOrigin,
 };
 use crate::error::{AdCleanseError, Result};
-use crate::storage::migrations::run_migrations;
+use crate::keyring::KeyringVault;
+use crate::storage::migrations::{needs_migration, run_migrations};
 use rusqlite::Connection;
-use std::path::PathBuf;
-use std::sync::Mutex;
+use std::path::{Path, PathBuf};
+use std::sync::{Mutex, OnceLock};
+use zeroize::Zeroize;
+
+pub const DEFAULT_MAX_BACKUPS: usize = 5;
 
 pub struct EncryptedDatabase {
     db_path: PathBuf,
+    backup_dir: PathBuf,
+    max_backups: usize,
     connection: Mutex<Option<Connection>>,
 }
 
+static GLOBAL_DB: OnceLock<EncryptedDatabase> = OnceLock::new();
+
 impl EncryptedDatabase {
     pub fn new(db_path: PathBuf) -> Self {
+        let backup_dir = db_path
+            .parent()
+            .unwrap_or_else(|| Path::new("."))
+            .join("backups");
         Self {
             db_path,
+            backup_dir,
+            max_backups: DEFAULT_MAX_BACKUPS,
             connection: Mutex::new(None),
         }
     }
 
-    /// Initializes local SQLite database with SQLCipher encryption pragmas
+    pub fn with_backup_dir(mut self, backup_dir: PathBuf) -> Self {
+        self.backup_dir = backup_dir;
+        self
+    }
+
+    pub fn with_max_backups(mut self, max: usize) -> Self {
+        self.max_backups = max;
+        self
+    }
+
+    pub fn db_path(&self) -> &Path {
+        &self.db_path
+    }
+
+    pub fn backup_dir(&self) -> &Path {
+        &self.backup_dir
+    }
+
+    /// Access the global singleton instance configured with standard platform paths
+    pub fn default_instance() -> &'static EncryptedDatabase {
+        GLOBAL_DB.get_or_init(|| Self::new(default_db_path()))
+    }
+
+    /// Initializes local SQLite database with SQLCipher AES-256 encryption pragmas and WAL mode
     pub fn initialize(&self, passphrase: &str) -> Result<()> {
         log::info!("Opening encrypted local database at: {:?}", self.db_path);
+
+        if let Some(parent) = self.db_path.parent() {
+            let _ = std::fs::create_dir_all(parent);
+        }
+
+        let is_existing_db = self.db_path.exists()
+            && std::fs::metadata(&self.db_path)
+                .map(|m| m.len() > 0)
+                .unwrap_or(false);
 
         let conn = Connection::open(&self.db_path)
             .map_err(|e| AdCleanseError::StorageError(e.to_string()))?;
 
-        // Enforce SQLCipher passphrase and performance pragmas
+        // Enforce SQLCipher AES-256 passphrase with immediate buffer zeroization
         if !passphrase.is_empty() {
-            let _ = conn.execute(
-                &format!("PRAGMA key = '{}';", passphrase.replace('\'', "''")),
-                [],
-            );
+            let mut pragma_stmt = format!("PRAGMA key = '{}';", passphrase.replace('\'', "''"));
+            conn.execute_batch(&pragma_stmt)
+                .map_err(|e| AdCleanseError::StorageError(format!("Failed to configure SQLCipher key: {}", e)))?;
+            pragma_stmt.zeroize();
         }
 
+        // Apply performance pragmas, WAL mode, busy timeout, and foreign keys
         conn.execute_batch(
             "PRAGMA cipher_page_size = 4096;
              PRAGMA journal_mode = WAL;
@@ -44,6 +91,25 @@ impl EncryptedDatabase {
         )
         .map_err(|e| AdCleanseError::StorageError(e.to_string()))?;
 
+        // Verify key by checking sqlite_master
+        let count_check: std::result::Result<i64, rusqlite::Error> =
+            conn.query_row("SELECT count(*) FROM sqlite_master;", [], |r| r.get(0));
+        if let Err(e) = count_check {
+            return Err(AdCleanseError::StorageError(format!(
+                "SQLCipher passphrase rejected or database corrupted: {}",
+                e
+            )));
+        }
+
+        // Automatic pre-migration backup rotation: if database exists and migrations are needed
+        if is_existing_db && needs_migration(&conn)? {
+            log::info!("Pending schema migrations detected. Executing pre-migration automated backup rotation.");
+            if let Err(err) = self.rotate_backup_internal(&conn) {
+                log::warn!("Pre-migration auto-backup encountered warning: {}", err);
+            }
+        }
+
+        // Run atomic migrations
         run_migrations(&conn)?;
 
         let mut guard = self
@@ -54,13 +120,25 @@ impl EncryptedDatabase {
         Ok(())
     }
 
-    /// Executes atomic local backup of encrypted database before migrations or bulk purge
-    pub fn backup_to(&self, target_path: &std::path::Path) -> Result<()> {
+    /// Initializes encrypted database using the master key managed by system Keyring
+    pub fn initialize_with_keyring(&self, vault: &KeyringVault) -> Result<()> {
+        let master_key = vault.get_or_create_db_key()?;
+        self.initialize(&master_key)
+    }
+
+    /// Executes atomic local backup of encrypted database to a specific target path
+    pub fn backup_to(&self, target_path: &Path) -> Result<()> {
         let guard = self
             .connection
             .lock()
             .map_err(|e| AdCleanseError::StorageError(e.to_string()))?;
         if let Some(conn) = guard.as_ref() {
+            if let Some(parent) = target_path.parent() {
+                let _ = std::fs::create_dir_all(parent);
+            }
+            if target_path.exists() {
+                let _ = std::fs::remove_file(target_path);
+            }
             let path_str = target_path.to_string_lossy();
             conn.execute("VACUUM INTO ?1", rusqlite::params![path_str])
                 .map_err(|e| {
@@ -73,6 +151,91 @@ impl EncryptedDatabase {
                 "Database connection not initialized".to_string(),
             ))
         }
+    }
+
+    /// Rotates backups maintaining up to `max_backups` copies (backup.1.db through backup.5.db)
+    pub fn rotate_and_create_backup(&self) -> Result<PathBuf> {
+        let guard = self
+            .connection
+            .lock()
+            .map_err(|e| AdCleanseError::StorageError(e.to_string()))?;
+        let conn = guard.as_ref().ok_or_else(|| {
+            AdCleanseError::StorageError("Database connection not initialized".to_string())
+        })?;
+        self.rotate_backup_internal(conn)
+    }
+
+    fn rotate_backup_internal(&self, conn: &Connection) -> Result<PathBuf> {
+        let _ = std::fs::create_dir_all(&self.backup_dir);
+        let max = self.max_backups.max(1);
+
+        // Remove oldest backup copy if present (e.g. adcleanse.backup.5.db)
+        let oldest = self.backup_dir.join(format!("adcleanse.backup.{}.db", max));
+        if oldest.exists() {
+            let _ = std::fs::remove_file(&oldest);
+        }
+
+        // Shift existing backups (e.g. 4 -> 5, 3 -> 4, etc.)
+        for i in (1..max).rev() {
+            let current = self.backup_dir.join(format!("adcleanse.backup.{}.db", i));
+            let next = self.backup_dir.join(format!("adcleanse.backup.{}.db", i + 1));
+            if current.exists() {
+                let _ = std::fs::rename(&current, &next);
+            }
+        }
+
+        // Newest backup is written to backup.1.db
+        let target = self.backup_dir.join("adcleanse.backup.1.db");
+        if target.exists() {
+            let _ = std::fs::remove_file(&target);
+        }
+
+        let path_str = target.to_string_lossy();
+        conn.execute("VACUUM INTO ?1", rusqlite::params![path_str])
+            .map_err(|e| {
+                AdCleanseError::StorageError(format!("Automated backup rotation failed: {}", e))
+            })?;
+
+        log::info!("Automated backup rotation completed: {:?}", target);
+        Ok(target)
+    }
+
+    /// Automatically triggers local database backup rotation before mass purge operations (> 50 items)
+    pub fn backup_before_mass_purge(&self, purge_count: usize) -> Result<Option<PathBuf>> {
+        if purge_count >= 50 {
+            log::info!(
+                "Mass purge operation triggered ({} topics). Executing pre-purge safety backup.",
+                purge_count
+            );
+            let backup_path = self.rotate_and_create_backup()?;
+            Ok(Some(backup_path))
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// Lists existing backup files in chronological order (newest first)
+    pub fn list_backups(&self) -> Vec<PathBuf> {
+        let mut backups = Vec::new();
+        for i in 1..=self.max_backups {
+            let p = self.backup_dir.join(format!("adcleanse.backup.{}.db", i));
+            if p.exists() {
+                backups.push(p);
+            }
+        }
+        backups
+    }
+
+    /// Returns count of existing backup snapshots
+    pub fn get_backup_count(&self) -> usize {
+        self.list_backups().len()
+    }
+
+    /// Returns file size of primary database in bytes
+    pub fn get_database_size_bytes(&self) -> u64 {
+        std::fs::metadata(&self.db_path)
+            .map(|m| m.len())
+            .unwrap_or(0)
     }
 
     pub fn is_ready(&self) -> bool {
@@ -193,29 +356,71 @@ impl EncryptedDatabase {
             AdCleanseError::StorageError("Database connection not initialized".to_string())
         })?;
 
-        let mut stmt = conn
-            .prepare(
-                "SELECT id, timestamp_epoch, total_topics, total_partners, drift_index FROM snapshots ORDER BY timestamp_epoch DESC LIMIT 1;",
+        let latest_id: Option<String> = conn
+            .query_row(
+                "SELECT id FROM snapshots ORDER BY timestamp_epoch DESC LIMIT 1;",
+                [],
+                |row| row.get(0),
             )
+            .ok();
+
+        match latest_id {
+            Some(id) => Self::load_snapshot_internal(conn, &id),
+            None => Ok(None),
+        }
+    }
+
+    /// Retrieves all historical snapshots ordered chronologically
+    pub fn get_all_snapshots(&self) -> Result<Vec<AuditSnapshot>> {
+        let guard = self
+            .connection
+            .lock()
+            .map_err(|e| AdCleanseError::StorageError(e.to_string()))?;
+        let conn = guard.as_ref().ok_or_else(|| {
+            AdCleanseError::StorageError("Database connection not initialized".to_string())
+        })?;
+
+        let mut stmt = conn
+            .prepare("SELECT id FROM snapshots ORDER BY timestamp_epoch ASC;")
             .map_err(|e| AdCleanseError::StorageError(e.to_string()))?;
 
-        let snapshot_row = stmt.query_row([], |row| {
-            Ok((
-                row.get::<_, String>(0)?,
-                row.get::<_, i64>(1)?,
-                row.get::<_, i64>(2)? as usize,
-                row.get::<_, i64>(3)? as usize,
-                row.get::<_, f64>(4)?,
-            ))
-        });
+        let snap_ids = stmt
+            .query_map([], |row| row.get::<_, String>(0))
+            .map_err(|e| AdCleanseError::StorageError(e.to_string()))?
+            .filter_map(|r| r.ok())
+            .collect::<Vec<_>>();
+        drop(stmt);
 
-        let (snap_id, ts, total_topics, total_partners, drift) = match snapshot_row {
+        let mut snapshots = Vec::new();
+        for id in snap_ids {
+            if let Some(snap) = Self::load_snapshot_internal(conn, &id)? {
+                snapshots.push(snap);
+            }
+        }
+        Ok(snapshots)
+    }
+
+    fn load_snapshot_internal(conn: &Connection, snap_id: &str) -> Result<Option<AuditSnapshot>> {
+        let snapshot_row = conn.query_row(
+            "SELECT id, timestamp_epoch, total_topics, total_partners, drift_index FROM snapshots WHERE id = ?1;",
+            rusqlite::params![snap_id],
+            |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, i64>(1)?,
+                    row.get::<_, i64>(2)? as usize,
+                    row.get::<_, i64>(3)? as usize,
+                    row.get::<_, f64>(4)?,
+                ))
+            },
+        );
+
+        let (id, ts, total_topics, total_partners, drift) = match snapshot_row {
             Ok(data) => data,
             Err(rusqlite::Error::QueryReturnedNoRows) => return Ok(None),
             Err(e) => return Err(AdCleanseError::StorageError(e.to_string())),
         };
 
-        // Load topics for this snapshot
         let mut topic_stmt = conn
             .prepare(
                 "SELECT id, name, category, origin, risk_level, date_added_epoch, is_active FROM ad_topics WHERE snapshot_id = ?1;",
@@ -224,7 +429,7 @@ impl EncryptedDatabase {
 
         let topic_rows = topic_stmt
             .query_map(rusqlite::params![snap_id], |row| {
-                let id: String = row.get(0)?;
+                let tid: String = row.get(0)?;
                 let name: String = row.get(1)?;
                 let category: String = row.get(2)?;
                 let origin_str: String = row.get(3)?;
@@ -241,7 +446,7 @@ impl EncryptedDatabase {
                 };
 
                 Ok(AdTopic {
-                    id,
+                    id: tid,
                     name,
                     category,
                     origin,
@@ -257,7 +462,6 @@ impl EncryptedDatabase {
             topics.push(topic);
         }
 
-        // Load partner uploads
         let mut partner_stmt = conn
             .prepare(
                 "SELECT id, company_name, upload_window_days, pixel_tracking_detected, opt_out_supported, opt_out_status, first_seen_epoch FROM partner_uploads WHERE snapshot_id = ?1;",
@@ -266,7 +470,7 @@ impl EncryptedDatabase {
 
         let partner_rows = partner_stmt
             .query_map(rusqlite::params![snap_id], |row| {
-                let id: String = row.get(0)?;
+                let pid: String = row.get(0)?;
                 let company_name: String = row.get(1)?;
                 let upload_window_days: u32 = row.get(2)?;
                 let pixel_int: i32 = row.get(3)?;
@@ -275,7 +479,7 @@ impl EncryptedDatabase {
                 let first_seen_epoch: i64 = row.get(6)?;
 
                 Ok(PartnerUpload {
-                    id,
+                    id: pid,
                     company_name,
                     upload_window_days,
                     pixel_tracking_detected: pixel_int != 0,
@@ -294,7 +498,7 @@ impl EncryptedDatabase {
         }
 
         Ok(Some(AuditSnapshot {
-            id: snap_id,
+            id,
             timestamp_epoch: ts,
             total_topics,
             total_partners,
@@ -302,6 +506,22 @@ impl EncryptedDatabase {
             topics,
             partners,
         }))
+    }
+
+    /// Returns count of all recorded snapshots
+    pub fn get_snapshots_count(&self) -> Result<usize> {
+        let guard = self
+            .connection
+            .lock()
+            .map_err(|e| AdCleanseError::StorageError(e.to_string()))?;
+        let conn = guard.as_ref().ok_or_else(|| {
+            AdCleanseError::StorageError("Database connection not initialized".to_string())
+        })?;
+
+        let count: i64 = conn
+            .query_row("SELECT count(*) FROM snapshots;", [], |r| r.get(0))
+            .unwrap_or(0);
+        Ok(count as usize)
     }
 
     /// Retrieves differential history ordered chronologically descending
@@ -337,6 +557,7 @@ impl EncryptedDatabase {
         Ok(results)
     }
 
+    /// Performs a zero-leak permanent erase of database, WAL files, and backup history
     pub fn wipe_all(&self) -> Result<()> {
         log::warn!("Executing complete zero-leak database wipe and purge");
         let mut guard = self
@@ -344,11 +565,56 @@ impl EncryptedDatabase {
             .lock()
             .map_err(|e| AdCleanseError::StorageError(e.to_string()))?;
         *guard = None;
+
         if self.db_path.exists() {
             let _ = std::fs::remove_file(&self.db_path);
         }
+
+        // Clean up WAL and SHM files
+        let wal = self.db_path.with_extension("db-wal");
+        if wal.exists() {
+            let _ = std::fs::remove_file(wal);
+        }
+        let shm = self.db_path.with_extension("db-shm");
+        if shm.exists() {
+            let _ = std::fs::remove_file(shm);
+        }
+
+        // Clean up backup directory
+        if self.backup_dir.exists() {
+            let _ = std::fs::remove_dir_all(&self.backup_dir);
+        }
+
         Ok(())
     }
+}
+
+/// Computes standard default database storage path per OS
+pub fn default_db_path() -> PathBuf {
+    #[cfg(target_os = "macos")]
+    {
+        if let Some(home) = std::env::var_os("HOME") {
+            return PathBuf::from(home)
+                .join("Library/Application Support/com.boredpolymath.adcleanse/adcleanse.encrypted.db");
+        }
+    }
+    #[cfg(target_os = "windows")]
+    {
+        if let Some(appdata) = std::env::var_os("APPDATA") {
+            return PathBuf::from(appdata)
+                .join("com.boredpolymath.adcleanse\\adcleanse.encrypted.db");
+        }
+    }
+    #[cfg(target_os = "linux")]
+    {
+        if let Some(home) = std::env::var_os("HOME") {
+            return PathBuf::from(home)
+                .join(".local/share/com.boredpolymath.adcleanse/adcleanse.encrypted.db");
+        }
+    }
+    std::env::temp_dir()
+        .join("com.boredpolymath.adcleanse")
+        .join("adcleanse.encrypted.db")
 }
 
 #[cfg(test)]
@@ -426,6 +692,93 @@ mod tests {
         let history = db.get_differential_history(10).unwrap();
         assert_eq!(history.len(), 1);
         assert_eq!(history[0].current_snapshot_id, "snap_bench_01");
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_sqlcipher_encryption_and_keyring_lifecycle() {
+        let dir = std::env::temp_dir().join(format!(
+            "adcleanse_cipher_test_{}",
+            chrono::Utc::now().timestamp_nanos_opt().unwrap_or(0)
+        ));
+        let db_path = dir.join("encrypted.db");
+        let _ = std::fs::create_dir_all(&dir);
+
+        let vault = KeyringVault::new();
+        let db = EncryptedDatabase::new(db_path.clone());
+
+        // Initialize with keyring managed key
+        db.initialize_with_keyring(&vault)
+            .expect("Failed to initialize encrypted database with keyring key");
+        assert!(db.is_ready());
+
+        // Save a test record
+        let snapshot = AuditSnapshot {
+            id: "snap_enc_1".to_string(),
+            timestamp_epoch: 1000,
+            total_topics: 0,
+            total_partners: 0,
+            drift_index: 0.0,
+            topics: vec![],
+            partners: vec![],
+        };
+        db.save_snapshot(&snapshot).unwrap();
+
+        // Drop connection and verify that opening with an invalid key fails
+        drop(db);
+
+        let unauthorized_db = EncryptedDatabase::new(db_path.clone());
+        let result = unauthorized_db.initialize("wrong_key_123456789012345678901234");
+        assert!(
+            result.is_err(),
+            "Opening encrypted database with wrong key must fail"
+        );
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_automated_backup_rotation_and_mass_purge_trigger() {
+        let dir = std::env::temp_dir().join(format!(
+            "adcleanse_backup_test_{}",
+            chrono::Utc::now().timestamp_nanos_opt().unwrap_or(0)
+        ));
+        let db_path = dir.join("test_rot.db");
+        let backup_dir = dir.join("backups");
+        let _ = std::fs::create_dir_all(&dir);
+
+        let db = EncryptedDatabase::new(db_path.clone())
+            .with_backup_dir(backup_dir.clone())
+            .with_max_backups(3);
+
+        db.initialize("test_passphrase_rotation_123")
+            .expect("Initialize failed");
+
+        // Rotate 4 times when max is 3
+        for _ in 0..4 {
+            db.rotate_and_create_backup().expect("Rotation failed");
+        }
+
+        let backups = db.list_backups();
+        assert_eq!(
+            backups.len(),
+            3,
+            "Should enforce max_backups limit by pruning oldest"
+        );
+        assert_eq!(db.get_backup_count(), 3);
+
+        // Mass purge trigger: < 50 topics does not trigger backup
+        let result_under = db
+            .backup_before_mass_purge(49)
+            .expect("Mass purge check failed");
+        assert!(result_under.is_none());
+
+        // Mass purge trigger: >= 50 topics automatically triggers backup
+        let result_over = db
+            .backup_before_mass_purge(50)
+            .expect("Mass purge check failed");
+        assert!(result_over.is_some());
 
         let _ = std::fs::remove_dir_all(&dir);
     }

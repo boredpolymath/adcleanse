@@ -14,6 +14,7 @@ pub struct ScrubResult {
 }
 
 pub struct PreferenceMutator {
+    #[allow(dead_code)]
     client: reqwest::Client,
 }
 

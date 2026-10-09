@@ -3,20 +3,20 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="AdCleanse - Offline-First Desktop Privacy Audit & Ad-Profile Scrubbing Console by Bored Polymath Studios">
-  <title>AdCleanse — Privacy Audit & Ad-Profile Scrubbing Console</title>
+  <meta name="description" content="AdCleanse - Desktop Privacy & Ad-Profile Protection Console by Bored Polymath Studios">
+  <title>AdCleanse — Ad Privacy Protection</title>
   <link rel="stylesheet" href="css/index.css">
 </head>
 <body class="dark-theme">
   <!-- Spotlight Floating HUD Simulation (Toggled via Hotkey / Button) -->
-  <aside id="spotlight-overlay" class="spotlight-overlay hidden" aria-label="Spotlight Quick Scrub Panel">
+  <aside id="spotlight-overlay" class="spotlight-overlay hidden" aria-label="Spotlight Quick Clean Panel">
     <div class="spotlight-card">
       <div class="spotlight-header">
         <div class="spotlight-brand">
           <span class="spotlight-icon">🛡️</span>
           <div>
             <strong>AdCleanse Spotlight</strong>
-            <small>Quick Scrub & Drift Glance (Global Hotkey: Cmd+Shift+P)</small>
+            <small>Quick Clean (Global Hotkey: Cmd+Shift+P)</small>
           </div>
         </div>
         <button id="btn-close-spotlight" class="icon-btn" title="Close Spotlight">&times;</button>
@@ -24,65 +24,87 @@
       <div class="spotlight-body">
         <div class="spotlight-stat-row">
           <div class="spotlight-stat">
-            <span class="lbl">Drift Index</span>
-            <span class="val highlight-amber" id="spotlight-drift">34.5%</span>
+            <span class="lbl">Sensitive Topics</span>
+            <span class="val highlight-amber" id="spotlight-drift">7</span>
           </div>
           <div class="spotlight-stat">
-            <span class="lbl">Active Vectors</span>
+            <span class="lbl">Tracked Topics</span>
             <span class="val" id="spotlight-topics">42 Topics</span>
           </div>
-          <div class="spotlight-stat">
-            <span class="lbl">Status</span>
-            <span class="val highlight-emerald">Zero-Telemetry</span>
-          </div>
         </div>
-        <div class="spotlight-quick-action">
-          <p>3 high-risk behavioral categories detected in latest audit.</p>
-          <button id="btn-spotlight-quick-scrub" class="btn btn-primary btn-block">⚡ Quick Scrub 3 High-Risk Topics</button>
+        <div class="spotlight-quick-action" style="margin-top: 14px;">
+          <p>Sensitive topics detected in your advertising profile.</p>
+          <button id="btn-spotlight-quick-scrub" class="btn btn-primary btn-block">⚡ Clean Sensitive Topics Now</button>
         </div>
       </div>
     </div>
   </aside>
 
-  <!-- Onboarding & Trust Modal -->
+  <!-- About & Trust Modal: Simple Plain-Language Guide -->
   <dialog id="modal-onboarding" class="modal-dialog">
     <div class="modal-card">
       <div class="modal-header">
         <div class="modal-title-wrap">
           <span class="modal-badge">Bored Polymath Studios</span>
-          <h2>AdCleanse Trust Blueprint & Architecture</h2>
+          <h2>How AdCleanse Protects Your Privacy</h2>
         </div>
         <button id="btn-close-onboarding" class="icon-btn" title="Close">&times;</button>
       </div>
+
       <div class="modal-body">
-        <div class="trust-declaration-banner">
-          <div class="trust-shield">🔒</div>
-          <div>
-            <h3>Zero-Knowledge Data Sovereignty Guarantee</h3>
-            <p>Your passwords, private messages, personal media, and contact lists are <strong>never accessed, monitored, or transmitted</strong>. All audit snapshots and custom rules stay inside an encrypted file located solely on this machine.</p>
+        <!-- Step Indicators -->
+        <div class="step-indicators">
+          <div class="step-indicator-pill active" id="indicator-step-1">1. Your Privacy</div>
+          <div class="step-indicator-pill" id="indicator-step-2">2. Local Storage</div>
+          <div class="step-indicator-pill" id="indicator-step-3">3. Protection</div>
+        </div>
+
+        <!-- Step 1: Plain-Language Trust Declarations -->
+        <div class="walkthrough-step" id="walkthrough-step-1">
+          <div class="trust-declaration-banner">
+            <div class="trust-shield">🛡️</div>
+            <div>
+              <h3>Your Personal Information is Completely Safe</h3>
+              <p>Your passwords, private messages, personal photos, and contacts are <strong>never accessed, monitored, or transmitted</strong>.</p>
+            </div>
+          </div>
+          <div class="trust-step">
+            <h4>What AdCleanse Does</h4>
+            <p>AdCleanse connects exclusively to your public ad preference settings. It only inspects commercial interest categories and advertiser customer lists attached to your advertising profile, and removes unwanted topics.</p>
           </div>
         </div>
 
-        <div class="trust-grid">
-          <div class="trust-step">
-            <div class="step-num">1</div>
-            <h4>Sandboxed Authentication</h4>
-            <p>Logins execute inside an isolated webview container with browser extensions and third-party scripts stripped. Tokens are captured and saved directly into your operating system's native hardware keyring.</p>
+        <!-- Step 2: Local & Encrypted -->
+        <div class="walkthrough-step hidden" id="walkthrough-step-2">
+          <div class="trust-grid">
+            <div class="trust-step">
+              <h4>1. Kept Exclusively on Your Mac</h4>
+              <p>Your data is stored locally in an encrypted vault on this computer. Nothing is ever sent to the cloud.</p>
+            </div>
+            <div class="trust-step">
+              <h4>2. Zero Tracking or Telemetry</h4>
+              <p>AdCleanse contains zero analytics, tracking beacons, or telemetry. It works quietly and strictly for you.</p>
+            </div>
           </div>
+        </div>
+
+        <!-- Step 3: Background Protection -->
+        <div class="walkthrough-step hidden" id="walkthrough-step-3">
           <div class="trust-step">
-            <div class="step-num">2</div>
-            <h4>SQLCipher AES-256 Storage</h4>
-            <p>All snapshot history, tracking categories, and custom scrubbing rules persist in an encrypted SQLite database on disk. Keys are stored in the OS Keyring and wiped on exit.</p>
-          </div>
-          <div class="trust-step">
-            <div class="step-num">3</div>
-            <h4>Zero-Telemetry Network Core</h4>
-            <p>AdCleanse contains zero analytics beacons, error reporters, or tracking pixels. You can verify every single outbound byte inside the live Network Ledger.</p>
+            <h4>Automatic Background Protection</h4>
+            <p>Meta continuously analyzes web browsing to add new commercial categories. AdCleanse runs quietly in the background to automatically remove unwanted topics before they can be used to target you.</p>
           </div>
         </div>
       </div>
-      <div class="modal-footer">
-        <button id="btn-ack-onboarding" class="btn btn-primary">I Understand &bull; Open Console</button>
+
+      <div class="modal-footer" style="margin-top: 8px;">
+        <div class="step-nav-footer">
+          <button id="btn-walkthrough-prev" class="btn btn-secondary" style="visibility: hidden;">&larr; Previous</button>
+          <div style="display: flex; gap: 10px;">
+            <button id="btn-walkthrough-next" class="btn btn-primary">Next &rarr;</button>
+            <button id="btn-walkthrough-finish" class="btn btn-primary hidden">Done</button>
+          </div>
+        </div>
       </div>
     </div>
   </dialog>
@@ -90,14 +112,14 @@
   <!-- Main Application Wrapper -->
   <div id="app-container" class="app-layout">
     
-    <!-- Header Section -->
+    <!-- Top Header: Facebook / Meta Style Top Bar -->
     <header class="app-header">
       <div class="header-left">
         <div class="logo-box">
           <span class="logo-glyph">🛡️</span>
           <div>
             <h1 class="logo-title">AdCleanse</h1>
-            <span class="logo-subtitle">Desktop Privacy Audit & Ad-Profile Scrubbing Console</span>
+            <span class="logo-subtitle">Ad Privacy Protection</span>
           </div>
         </div>
       </div>
@@ -106,471 +128,381 @@
         <div class="hero-status-pill">
           <span class="status-pulse-dot" id="header-pulse-dot"></span>
           <div class="status-meta">
-            <span class="status-headline" id="header-session-state">Protected &bull; Authenticated</span>
-            <span class="status-subline" id="header-sub-state">Zero-Telemetry Engine Active &bull; OS Keyring Locked</span>
+            <span class="status-headline">Protection Active</span>
+            <span class="status-subline">Last checked: <span id="header-last-scan">Just now</span></span>
           </div>
         </div>
+        <!-- Hidden helpers for JS bindings -->
+        <span id="header-session-state" style="display:none">Protected</span>
+        <span id="header-sub-state" style="display:none">Active</span>
       </div>
 
       <div class="header-right">
-        <button id="btn-run-audit" class="btn btn-primary" title="Trigger immediate differential audit">
-          <span class="btn-icon">⚡</span> Run Audit
+        <button id="btn-run-audit" class="btn btn-primary" title="Check your ad profile now">
+          ⚡ Check Now
         </button>
-        <button id="btn-toggle-spotlight" class="btn btn-secondary" title="Open floating Spotlight HUD">
-          <span class="btn-icon">🪟</span> Spotlight
+        <button id="btn-toggle-spotlight" class="fb-circle-btn" title="Open Spotlight HUD">
+          🪟
         </button>
-        <button id="btn-open-trust" class="btn btn-outline" title="View Trust Blueprint">
-          <span class="btn-icon">ℹ️</span> Trust Info
+        <button id="btn-open-trust" class="fb-circle-btn" title="About AdCleanse">
+          ℹ️
         </button>
       </div>
     </header>
 
-    <!-- Navigation Bar -->
-    <nav class="app-navbar" aria-label="Main Navigation">
-      <ul class="nav-tabs" role="tablist">
-        <li role="presentation">
-          <button class="nav-tab-btn active" id="tab-overview" data-target="pane-overview" role="tab" aria-selected="true">
-            <span class="tab-icon">📊</span> Overview
-          </button>
-        </li>
-        <li role="presentation">
-          <button class="nav-tab-btn" id="tab-topics" data-target="pane-topics" role="tab" aria-selected="false">
-            <span class="tab-icon">🏷️</span> Ad Topics Catalog <span class="badge" id="badge-topics-count">42</span>
-          </button>
-        </li>
-        <li role="presentation">
-          <button class="nav-tab-btn" id="tab-partners" data-target="pane-partners" role="tab" aria-selected="false">
-            <span class="tab-icon">🏢</span> Partner Ingestions <span class="badge badge-rose" id="badge-partners-count">18</span>
-          </button>
-        </li>
-        <li role="presentation">
-          <button class="nav-tab-btn" id="tab-rules" data-target="pane-rules" role="tab" aria-selected="false">
-            <span class="tab-icon">⚖️</span> Scrub Rules
-          </button>
-        </li>
-        <li role="presentation">
-          <button class="nav-tab-btn" id="tab-diff" data-target="pane-diff" role="tab" aria-selected="false">
-            <span class="tab-icon">📈</span> Drift & Diffs
-          </button>
-        </li>
-        <li role="presentation">
-          <button class="nav-tab-btn" id="tab-ledger" data-target="pane-ledger" role="tab" aria-selected="false">
-            <span class="tab-icon">📜</span> Network Ledger <span class="badge badge-emerald">Live</span>
-          </button>
-        </li>
-        <li role="presentation">
-          <button class="nav-tab-btn" id="tab-settings" data-target="pane-settings" role="tab" aria-selected="false">
-            <span class="tab-icon">⚙️</span> Storage & Security
-          </button>
-        </li>
-      </ul>
-    </nav>
-
-    <!-- Main Workspace Area -->
-    <main class="app-main">
+    <!-- Two-Column Clean App Shell -->
+    <div class="accounts-center-shell">
       
-      <!-- PANE 1: OVERVIEW -->
-      <section id="pane-overview" class="tab-pane active" role="tabpanel">
-        <!-- 4 Metric Cards -->
-        <div class="metric-grid">
-          <div class="metric-card">
-            <div class="metric-header">
-              <span class="metric-label">Tracked Ad Topics</span>
-              <span class="metric-icon-bubble">🏷️</span>
-            </div>
-            <div class="metric-value" id="overview-total-topics">42</div>
-            <div class="metric-caption">Algorithmic interest categories attached to your profile</div>
-          </div>
+      <!-- Left Sidebar: Clean, Simple Navigation (No Accounts Center card) -->
+      <aside class="accounts-center-sidebar" aria-label="Main Navigation">
+        <nav class="sidebar-nav-tree">
+          <button class="nav-tab-btn active" id="tab-topics" data-target="pane-topics">
+            <span class="tab-icon-bubble">🏷️</span>
+            <span class="tab-label">Ad Topics</span>
+            <span class="badge" id="badge-topics-count">42</span>
+          </button>
+          <button class="nav-tab-btn" id="tab-partners" data-target="pane-partners">
+            <span class="tab-icon-bubble">🏢</span>
+            <span class="tab-label">Advertisers</span>
+            <span class="badge badge-rose" id="badge-partners-count">18</span>
+          </button>
+          <button class="nav-tab-btn" id="tab-diff" data-target="pane-diff">
+            <span class="tab-icon-bubble">🕒</span>
+            <span class="tab-label">Activity</span>
+          </button>
+          <button class="nav-tab-btn" id="tab-settings" data-target="pane-settings">
+            <span class="tab-icon-bubble">⚙️</span>
+            <span class="tab-label">Settings</span>
+          </button>
+        </nav>
 
-          <div class="metric-card metric-card-amber">
-            <div class="metric-header">
-              <span class="metric-label">High-Risk Vectors</span>
-              <span class="metric-icon-bubble">⚠️</span>
-            </div>
-            <div class="metric-value highlight-amber" id="overview-high-risk">7</div>
-            <div class="metric-caption">Financial, health, or behavioral inferences</div>
+        <!-- Sidebar User Profile Card -->
+        <div class="sidebar-account-card">
+          <div class="account-avatar">
+            <span class="avatar-glyph">👤</span>
+            <span class="avatar-status-dot"></span>
           </div>
-
-          <div class="metric-card metric-card-rose">
-            <div class="metric-header">
-              <span class="metric-label">Partner Customer Uploads</span>
-              <span class="metric-icon-bubble">📡</span>
-            </div>
-            <div class="metric-value highlight-rose" id="overview-partner-count">18</div>
-            <div class="metric-caption">External businesses uploading your data (90-day window)</div>
-          </div>
-
-          <div class="metric-card metric-card-emerald">
-            <div class="metric-header">
-              <span class="metric-label">Scrubbed Topics</span>
-              <span class="metric-icon-bubble">🧹</span>
-            </div>
-            <div class="metric-value highlight-emerald" id="overview-scrubbed-count">128</div>
-            <div class="metric-caption">Successfully purged from Meta preference endpoints</div>
+          <div class="account-meta">
+            <strong class="account-name">Facebook Account</strong>
+            <span class="account-id">ID: 100084920491823</span>
           </div>
         </div>
+      </aside>
 
-        <!-- 2 Column Section: Drift Visualizer & Quick Action Banner -->
-        <div class="overview-split">
-          <div class="panel-box">
-            <div class="panel-header">
-              <h3>Tracking Vector Drift Index</h3>
-              <span class="pill pill-amber" id="drift-level-pill">Moderate Drift</span>
-            </div>
-            <div class="drift-score-container">
-              <div class="drift-number-display">
-                <span class="drift-big-val" id="drift-index-val">34.5</span>
-                <span class="drift-pct">%</span>
-              </div>
-              <div class="drift-bar-track">
-                <div class="drift-bar-fill" id="drift-bar-fill" style="width: 34.5%;"></div>
-              </div>
-              <p class="panel-desc">Calculated by measuring algorithmic interest drift and unapproved category re-assignments since initial baseline snapshot.</p>
-            </div>
-          </div>
+      <!-- Right Main Content Area: Consolidated Screens -->
+      <main class="accounts-center-content">
+        <div class="content-viewport">
 
-          <div class="panel-box">
-            <div class="panel-header">
-              <h3>Automated Protection Daemon</h3>
-              <span class="pill pill-emerald">Active In Tray</span>
-            </div>
-            <div class="daemon-summary">
-              <div class="daemon-meta-row">
-                <span>Polling Cadence:</span>
-                <strong>Every 60 Minutes (with Randomized Jitter)</strong>
-              </div>
-              <div class="daemon-meta-row">
-                <span>Memory Footprint:</span>
-                <strong class="highlight-emerald">18.4 MB (Target: &lt; 35 MB)</strong>
-              </div>
-              <div class="daemon-meta-row">
-                <span>Database Cipher:</span>
-                <strong>SQLCipher AES-256 (Zero-Leak Mode)</strong>
-              </div>
-              <div class="daemon-meta-row">
-                <span>Anti-Throttling Status:</span>
-                <strong class="highlight-emerald">Ready (0s Cooldown)</strong>
+          <!-- SCREEN 1: AD TOPICS & PROTECTION (PRIMARY DASHBOARD) -->
+          <section id="pane-topics" class="tab-pane active" role="tabpanel">
+            <div class="screen-header">
+              <div class="screen-title-wrap">
+                <h2>Your Ad Topics</h2>
+                <p>These are the commercial interest topics Meta uses to show you targeted ads. Review and remove individual topics, or clean all sensitive categories at once.</p>
               </div>
             </div>
-            <div class="daemon-actions">
-              <button id="btn-quick-scrub-all-high" class="btn btn-danger btn-block">
-                🧹 Mass-Purge All 7 High-Risk Categories
+
+            <!-- Consolidated Metrics Row -->
+            <div class="metric-row">
+              <div class="metric-pill-card">
+                <div class="metric-pill-icon">🏷️</div>
+                <div class="metric-pill-info">
+                  <span class="metric-pill-val highlight-blue" id="overview-total-topics">42</span>
+                  <span class="metric-pill-label">Tracked Ad Topics</span>
+                </div>
+              </div>
+
+              <div class="metric-pill-card">
+                <div class="metric-pill-icon">⚠️</div>
+                <div class="metric-pill-info">
+                  <span class="metric-pill-val highlight-amber" id="overview-high-risk">7</span>
+                  <span class="metric-pill-label">Sensitive Topics (Health/Finance)</span>
+                </div>
+              </div>
+
+              <div class="metric-pill-card">
+                <div class="metric-pill-icon">🧹</div>
+                <div class="metric-pill-info">
+                  <span class="metric-pill-val highlight-emerald" id="overview-scrubbed-count">128</span>
+                  <span class="metric-pill-label">Cleaned Topics</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Quick Action Banner -->
+            <div class="action-banner-card">
+              <div class="action-banner-text">
+                <strong>7 Sensitive Topics Detected</strong>
+                <p>Financial, healthcare, or personal behavioral topics are currently attached to your account.</p>
+              </div>
+              <button id="btn-quick-scrub-all-high" class="btn btn-danger">
+                🧹 Clean All 7 Sensitive Topics
               </button>
             </div>
-          </div>
-        </div>
 
-        <!-- Recent Audit Activity Feed -->
-        <div class="panel-box">
-          <div class="panel-header">
-            <h3>Recent Audit & Scrub History</h3>
-            <span class="panel-sub">Immutable local audit entries</span>
-          </div>
-          <div class="table-wrap">
-            <table class="data-table" id="table-overview-activity">
-              <thead>
-                <tr>
-                  <th>Timestamp</th>
-                  <th>Action Type</th>
-                  <th>Target Parameter</th>
-                  <th>Status Code</th>
-                  <th>Verification</th>
-                </tr>
-              </thead>
-              <tbody id="tbody-overview-activity">
-                <tr>
-                  <td>Today, 09:15 AM</td>
-                  <td><span class="pill pill-purple">Audit Extract</span></td>
-                  <td>Full Preference Catalog</td>
-                  <td><span class="pill pill-emerald">200 OK</span></td>
-                  <td>Zero-Telemetry Verified</td>
-                </tr>
-                <tr>
-                  <td>Today, 09:12 AM</td>
-                  <td><span class="pill pill-danger">Topic Scrub</span></td>
-                  <td>Health Insurance &amp; Supplements</td>
-                  <td><span class="pill pill-emerald">200 OK</span></td>
-                  <td>Endpoint Mutated</td>
-                </tr>
-                <tr>
-                  <td>Yesterday, 04:30 PM</td>
-                  <td><span class="pill pill-amber">Auto-Enforce</span></td>
-                  <td>Gambling &amp; Online Casinos</td>
-                  <td><span class="pill pill-emerald">200 OK</span></td>
-                  <td>Rule Blacklist Matched</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </section>
+            <!-- Topics Catalog & Search -->
+            <div class="panel-box">
+              <div class="toolbar-box">
+                <div class="toolbar-search">
+                  <input type="search" id="input-topics-search" placeholder="🔍 Search your topics..." class="form-input">
+                </div>
+                <div class="toolbar-filters">
+                  <select id="select-category-filter" class="form-select">
+                    <option value="all">All Categories</option>
+                    <option value="Financial Services">Financial Services</option>
+                    <option value="Healthcare & Wellness">Healthcare &amp; Wellness</option>
+                    <option value="Automotive">Automotive</option>
+                    <option value="E-Commerce & Retail">E-Commerce &amp; Retail</option>
+                    <option value="Entertainment">Entertainment</option>
+                  </select>
+                  <select id="select-risk-filter" class="form-select">
+                    <option value="all">All Sensitivity</option>
+                    <option value="Critical">Critical</option>
+                    <option value="High">High</option>
+                    <option value="Moderate">Moderate</option>
+                    <option value="Low">Low</option>
+                  </select>
+                  <button id="btn-batch-scrub" class="btn btn-danger" disabled>
+                    Remove Selected (<span id="batch-selected-count">0</span>)
+                  </button>
+                </div>
+              </div>
 
-      <!-- PANE 2: AD TOPICS CATALOG -->
-      <section id="pane-topics" class="tab-pane" role="tabpanel">
-        <div class="toolbar-box">
-          <div class="toolbar-search">
-            <input type="search" id="input-topics-search" placeholder="Search interest topics or categories..." class="form-input">
-          </div>
-          <div class="toolbar-filters">
-            <select id="select-category-filter" class="form-select">
-              <option value="all">All Categories</option>
-              <option value="Financial Services">Financial Services</option>
-              <option value="Healthcare & Wellness">Healthcare &amp; Wellness</option>
-              <option value="Automotive">Automotive</option>
-              <option value="E-Commerce & Retail">E-Commerce &amp; Retail</option>
-              <option value="Entertainment">Entertainment</option>
-            </select>
-            <select id="select-risk-filter" class="form-select">
-              <option value="all">All Risk Levels</option>
-              <option value="Critical">Critical</option>
-              <option value="High">High</option>
-              <option value="Moderate">Moderate</option>
-              <option value="Low">Low</option>
-            </select>
-            <button id="btn-batch-scrub" class="btn btn-danger" disabled>
-              Scrub Selected (<span id="batch-selected-count">0</span>)
-            </button>
-          </div>
-        </div>
-
-        <div class="table-wrap">
-          <table class="data-table" id="table-topics">
-            <thead>
-              <tr>
-                <th style="width: 40px;"><input type="checkbox" id="check-all-topics" title="Select All"></th>
-                <th>Topic Category</th>
-                <th>Sub-Category / Interest Tag</th>
-                <th>Origin Classification</th>
-                <th>Risk Tier</th>
-                <th>Action</th>
-              </tr>
-            </thead>
-            <tbody id="tbody-topics">
-              <!-- Rendered dynamically by app.js -->
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-      <!-- PANE 3: PARTNER INGESTIONS -->
-      <section id="pane-partners" class="tab-pane" role="tabpanel">
-        <div class="info-alert">
-          <strong>Partner Audience Registry:</strong> Meta permits external businesses and data brokers to upload personal customer lists (emails, phone numbers, and web pixel events) to target your account. AdCleanse extracts and revokes targeting rights directly from here.
-        </div>
-
-        <div class="table-wrap">
-          <table class="data-table" id="table-partners">
-            <thead>
-              <tr>
-                <th>Partner / Data Broker</th>
-                <th>Upload Window</th>
-                <th>Pixel Tracking</th>
-                <th>Targeting Rights</th>
-                <th>Action</th>
-              </tr>
-            </thead>
-            <tbody id="tbody-partners">
-              <!-- Rendered dynamically by app.js -->
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-      <!-- PANE 4: SCRUB RULES -->
-      <section id="pane-rules" class="tab-pane" role="tabpanel">
-        <div class="split-layout">
-          <div class="panel-box">
-            <div class="panel-header">
-              <h3>Create Permanent Scrub Rule</h3>
+              <div class="table-wrap" style="margin-top: 14px;">
+                <table class="data-table" id="table-topics">
+                  <thead>
+                    <tr>
+                      <th style="width: 40px;"><input type="checkbox" id="check-all-topics" title="Select All"></th>
+                      <th>Category</th>
+                      <th>Topic Name</th>
+                      <th>Source</th>
+                      <th>Sensitivity</th>
+                      <th>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody id="tbody-topics">
+                    <!-- Rendered dynamically by app.js -->
+                  </tbody>
+                </table>
+              </div>
             </div>
-            <form id="form-create-rule" class="rule-form">
-              <div class="form-group">
-                <label for="rule-pattern">Topic Keyword or Pattern:</label>
-                <input type="text" id="rule-pattern" placeholder="e.g. Mortgages, Casinos, Weight Loss" class="form-input" required>
-              </div>
-              <div class="form-group form-check">
-                <input type="checkbox" id="rule-is-regex">
-                <label for="rule-is-regex">Treat as Regular Expression (Regex)</label>
-              </div>
-              <div class="form-group form-check">
-                <input type="checkbox" id="rule-auto-scrub" checked>
-                <label for="rule-auto-scrub">Automatically purge topic when detected in background audit</label>
-              </div>
-              <button type="submit" class="btn btn-primary">Add Rule</button>
-            </form>
-          </div>
 
-          <div class="panel-box">
-            <div class="panel-header">
-              <h3>Active Topic Rules</h3>
-              <span class="panel-sub">Continuous enforcement daemon active</span>
+            <!-- Consolidated Auto-Block Section on Same Screen -->
+            <div class="panel-box">
+              <div class="panel-header">
+                <div>
+                  <h3>Always Block Topics by Keyword</h3>
+                  <span class="panel-sub">Any topics matching these keywords will be removed automatically whenever Meta tries to add them.</span>
+                </div>
+              </div>
+
+              <div class="auto-block-container">
+                <form id="form-create-rule" class="rule-add-bar">
+                  <input type="text" id="rule-pattern" placeholder="Enter keyword to always block (e.g. Mortgages, Casinos, Weight Loss)..." class="form-input" required>
+                  <input type="checkbox" id="rule-auto-scrub" checked style="display:none">
+                  <input type="checkbox" id="rule-is-regex" style="display:none">
+                  <button type="submit" class="btn btn-primary">+ Block Keyword</button>
+                </form>
+
+                <div class="table-wrap" style="margin-top: 8px;">
+                  <table class="data-table" id="table-rules">
+                    <thead>
+                      <tr>
+                        <th>Blocked Keyword</th>
+                        <th>Action</th>
+                      </tr>
+                    </thead>
+                    <tbody id="tbody-rules">
+                      <!-- Rendered dynamically by app.js -->
+                    </tbody>
+                  </table>
+                </div>
+              </div>
             </div>
-            <div class="table-wrap">
-              <table class="data-table" id="table-rules">
-                <thead>
-                  <tr>
-                    <th>Pattern / Filter</th>
-                    <th>Type</th>
-                    <th>Auto-Purge</th>
-                    <th>Action</th>
-                  </tr>
-                </thead>
-                <tbody id="tbody-rules">
+          </section>
+
+          <!-- SCREEN 2: ADVERTISERS TARGETING YOU -->
+          <section id="pane-partners" class="tab-pane" role="tabpanel">
+            <div class="screen-header">
+              <div class="screen-title-wrap">
+                <h2>Advertisers Targeting You</h2>
+                <p>These companies added you to their customer lists (emails, phone numbers) or tracked your visits in the last 90 days. You can stop any company from targeting you below.</p>
+              </div>
+            </div>
+
+            <div class="metric-pill-card" style="margin-bottom: 4px;">
+              <div class="metric-pill-icon">🏢</div>
+              <div class="metric-pill-info">
+                <span class="metric-pill-val highlight-rose" id="overview-partner-count">18</span>
+                <span class="metric-pill-label">Companies Targeting You</span>
+              </div>
+            </div>
+
+            <div class="panel-box">
+              <div class="table-wrap">
+                <table class="data-table" id="table-partners">
+                  <thead>
+                    <tr>
+                      <th>Company / Advertiser</th>
+                      <th>Uploaded Within</th>
+                      <th>Tracking Type</th>
+                      <th>Status</th>
+                      <th>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody id="tbody-partners">
+                    <!-- Rendered dynamically by app.js -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+
+          <!-- SCREEN 3: ACTIVITY HISTORY -->
+          <section id="pane-diff" class="tab-pane" role="tabpanel">
+            <div class="screen-header">
+              <div class="screen-title-wrap">
+                <h2>Activity History</h2>
+                <p>See changes to your ad profile over time, including topics newly added by Meta and topics cleaned by AdCleanse.</p>
+              </div>
+              <div class="screen-actions">
+                <button id="btn-recompute-diff" class="btn btn-secondary">Check for Changes Now</button>
+              </div>
+            </div>
+
+            <div class="diff-comparison-columns">
+              <div class="diff-card diff-card-added">
+                <div class="diff-card-header">
+                  <span class="diff-tag diff-tag-amber">+ Recently Added by Meta</span>
+                  <strong id="diff-added-count">3 Topics</strong>
+                </div>
+                <ul class="diff-list" id="diff-added-list">
                   <!-- Rendered dynamically by app.js -->
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <!-- PANE 5: DRIFT & DIFFS -->
-      <section id="pane-diff" class="tab-pane" role="tabpanel">
-        <div class="diff-header-box">
-          <div>
-            <h3>Differential Snapshot Timeline</h3>
-            <p class="panel-desc">Visual comparison between consecutive snapshot extractions showing algorithmic changes.</p>
-          </div>
-          <div class="diff-actions">
-            <button id="btn-recompute-diff" class="btn btn-secondary">Recompute Drift Delta</button>
-          </div>
-        </div>
-
-        <div class="diff-comparison-columns">
-          <div class="diff-card diff-card-added">
-            <div class="diff-card-header">
-              <span class="diff-tag diff-tag-amber">+ Added Without User Consent</span>
-              <strong id="diff-added-count">3 Topics</strong>
-            </div>
-            <ul class="diff-list" id="diff-added-list">
-              <li>
-                <strong>Mortgage Refinancing</strong>
-                <small>Origin: Off-Platform Pixel Tracking &bull; Risk: High</small>
-              </li>
-              <li>
-                <strong>Clinical Depression Therapeutics</strong>
-                <small>Origin: Inferred Browsing Activity &bull; Risk: Critical</small>
-              </li>
-              <li>
-                <strong>Pre-Approved Credit Cards</strong>
-                <small>Origin: Lookalike Audience &bull; Risk: High</small>
-              </li>
-            </ul>
-          </div>
-
-          <div class="diff-card diff-card-removed">
-            <div class="diff-card-header">
-              <span class="diff-tag diff-tag-emerald">&minus; Successfully Scrubbed</span>
-              <strong id="diff-removed-count">2 Topics</strong>
-            </div>
-            <ul class="diff-list" id="diff-removed-list">
-              <li>
-                <strong>Online Poker &amp; Sports Betting</strong>
-                <small>Scrubbed by Rule #1 &bull; Status: Purged</small>
-              </li>
-              <li>
-                <strong>Weight Loss Surgery</strong>
-                <small>Scrubbed by Manual Action &bull; Status: Purged</small>
-              </li>
-            </ul>
-          </div>
-        </div>
-      </section>
-
-      <!-- PANE 6: NETWORK LEDGER -->
-      <section id="pane-ledger" class="tab-pane" role="tabpanel">
-        <div class="panel-box">
-          <div class="panel-header">
-            <div>
-              <h3>Real-Time Outbound Request Ledger</h3>
-              <p class="panel-desc">Cryptographically verifiable log demonstrating strict zero-telemetry architecture.</p>
-            </div>
-            <div>
-              <button id="btn-clear-ledger" class="btn btn-outline">Clear Ledger</button>
-            </div>
-          </div>
-
-          <div class="table-wrap">
-            <table class="data-table" id="table-ledger">
-              <thead>
-                <tr>
-                  <th>ID</th>
-                  <th>Timestamp</th>
-                  <th>Method</th>
-                  <th>Target Endpoint</th>
-                  <th>Status</th>
-                  <th>Payload Digest</th>
-                  <th>Privacy Check</th>
-                </tr>
-              </thead>
-              <tbody id="tbody-ledger">
-                <!-- Rendered dynamically by app.js -->
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </section>
-
-      <!-- PANE 7: STORAGE & SECURITY -->
-      <section id="pane-settings" class="tab-pane" role="tabpanel">
-        <div class="split-layout">
-          <div class="panel-box">
-            <div class="panel-header">
-              <h3>Encrypted Storage &amp; Keyring Status</h3>
-            </div>
-            <div class="storage-meta-list">
-              <div class="storage-row">
-                <span>Database File:</span>
-                <code id="meta-db-path">~/Library/Application Support/com.boredpolymath.adcleanse/adcleanse.encrypted.db</code>
+                </ul>
               </div>
-              <div class="storage-row">
-                <span>Encryption Algorithm:</span>
-                <strong class="highlight-emerald">SQLCipher AES-256 (CBC)</strong>
+
+              <div class="diff-card diff-card-removed">
+                <div class="diff-card-header">
+                  <span class="diff-tag diff-tag-emerald">&minus; Cleaned by AdCleanse</span>
+                  <strong id="diff-removed-count">2 Topics</strong>
+                </div>
+                <ul class="diff-list" id="diff-removed-list">
+                  <!-- Rendered dynamically by app.js -->
+                </ul>
               </div>
-              <div class="storage-row">
-                <span>Key Storage Enclave:</span>
-                <strong>Native OS Secure Keyring (Apple Keychain / Credential Manager)</strong>
-              </div>
-              <div class="storage-row">
-                <span>Journal Mode:</span>
-                <strong>SQLite WAL (Write-Ahead Logging)</strong>
-              </div>
-              <div class="storage-row">
-                <span>Total Snapshot Backups:</span>
-                <strong id="meta-backup-count">3 Rotations</strong>
+            </div>
+          </section>
+
+          <!-- SCREEN 4: PREFERENCES & DATA -->
+          <section id="pane-settings" class="tab-pane" role="tabpanel">
+            <div class="screen-header">
+              <div class="screen-title-wrap">
+                <h2>Settings &amp; Data</h2>
+                <p>Control automatic background protection, notifications, and export or reset your local data.</p>
               </div>
             </div>
 
-            <div class="storage-actions">
-              <button id="btn-export-json" class="btn btn-secondary">Export All History (JSON)</button>
-              <button id="btn-export-csv" class="btn btn-secondary">Export Topics (CSV)</button>
-            </div>
-          </div>
+            <div class="settings-grid">
+              
+              <!-- Card 1: Automatic Protection -->
+              <div class="settings-card">
+                <div class="settings-card-header">
+                  <h3>Protection &amp; Alerts</h3>
+                  <p>Configure how AdCleanse monitors your profile.</p>
+                </div>
 
-          <div class="panel-box panel-box-danger">
-            <div class="panel-header">
-              <h3 class="highlight-rose">Local Data Eradication</h3>
+                <div class="toggle-row">
+                  <div class="toggle-label">
+                    <strong>Background Protection</strong>
+                    <small>Keep AdCleanse running quietly in the background</small>
+                  </div>
+                  <label class="toggle-switch">
+                    <input type="checkbox" id="toggle-auto-polling" checked>
+                    <span class="toggle-slider"></span>
+                  </label>
+                </div>
+
+                <div class="slider-group" style="margin-top: 14px;">
+                  <div class="slider-label-row">
+                    <span>How Often to Check:</span>
+                    <span class="slider-val-badge" id="val-polling-interval">60 min</span>
+                  </div>
+                  <input type="range" id="slider-polling-interval" class="form-range" min="15" max="240" step="15" value="60">
+                </div>
+
+                <div class="toggle-row">
+                  <div class="toggle-label">
+                    <strong>Desktop Notifications</strong>
+                    <small>Show an alert when sensitive topics are detected</small>
+                  </div>
+                  <label class="toggle-switch">
+                    <input type="checkbox" id="toggle-notifications-enabled" checked>
+                    <span class="toggle-slider"></span>
+                  </label>
+                </div>
+
+                <div class="toggle-row">
+                  <div class="toggle-label">
+                    <strong>New Advertiser Alerts</strong>
+                    <small>Notify when companies upload your information</small>
+                  </div>
+                  <label class="toggle-switch">
+                    <input type="checkbox" id="toggle-notify-partner-uploads" checked>
+                    <span class="toggle-slider"></span>
+                  </label>
+                </div>
+
+                <!-- Hidden compatibility inputs -->
+                <input type="range" id="slider-jitter-window" style="display:none" value="180">
+                <span id="val-jitter-window" style="display:none"></span>
+                <input type="range" id="slider-digest-window" style="display:none" value="5">
+                <span id="val-digest-window" style="display:none"></span>
+                <input type="checkbox" id="toggle-tray-resident" style="display:none" checked>
+                <input type="checkbox" id="toggle-notify-new-topics" style="display:none" checked>
+              </div>
+
+              <!-- Card 2: Your Data & Export -->
+              <div class="settings-card">
+                <div class="settings-card-header">
+                  <h3>Your Data</h3>
+                  <p>Download a copy of your ad profile data or reset the app.</p>
+                </div>
+
+                <div class="storage-actions">
+                  <button id="btn-export-csv" class="btn btn-secondary btn-block">Download Topics (CSV)</button>
+                  <button id="btn-export-json" class="btn btn-secondary btn-block">Download Full History (JSON)</button>
+                </div>
+
+                <div style="border-top: 1px solid var(--border-subtle); padding-top: 14px; margin-top: 14px;">
+                  <strong style="display: block; font-size: 13px; margin-bottom: 4px; color: var(--rose);">Reset &amp; Erase</strong>
+                  <p style="font-size: 11px; color: var(--text-muted); margin-bottom: 12px;">Erase all saved local data and reset AdCleanse to its initial state.</p>
+                  <button id="btn-nuclear-wipe" class="btn btn-danger btn-block">
+                    ⚠️ Erase All Local Data
+                  </button>
+                </div>
+
+                <!-- Hidden compatibility elements for JS -->
+                <code id="meta-db-path" style="display:none"></code>
+                <span id="meta-backup-count" style="display:none"></span>
+                <button id="btn-clear-ledger" style="display:none"></button>
+                <table style="display:none"><tbody id="tbody-ledger"></tbody></table>
+              </div>
+
             </div>
-            <p class="panel-desc">Permanently wipe all local encrypted snapshots, remove stored OS Keyring tokens, and zeroize memory buffers.</p>
-            <div class="danger-box">
-              <button id="btn-nuclear-wipe" class="btn btn-danger btn-block">
-                ⚠️ Wipe Local Database &amp; Purge Keyring
-              </button>
-            </div>
-          </div>
+          </section>
+
         </div>
-      </section>
-
-    </main>
+      </main>
+    </div>
 
     <!-- Footer Bar -->
     <footer class="app-footer">
       <div class="footer-left">
-        <span class="footer-tag">AdCleanse v0.1.0</span>
+        <span class="footer-tag">AdCleanse</span>
         <span class="footer-dot">&bull;</span>
         <span>Bored Polymath Studios</span>
         <span class="footer-dot">&bull;</span>
-        <span class="highlight-emerald">Zero-Telemetry Mode Active</span>
+        <span class="highlight-emerald">Private &amp; Local</span>
       </div>
       <div class="footer-right">
         <span>Shortcut: <kbd>Cmd</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd> Spotlight</span>
